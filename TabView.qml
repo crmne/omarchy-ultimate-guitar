@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import Quickshell
 import Quickshell.Io
 import qs.Commons
@@ -35,7 +36,11 @@ Item {
 
   // Reading preferences outlive the popup, and there is no shell API to write
   // back into a widget's shell.json entry, so they get their own state file.
-  property int fontSize: 13
+  // Auto by default. Deliberately NOT derived from the panel width the way the
+  // lyrics reader does it: here the width comes from the widest line, which
+  // depends on the font, so sizing the font from the width would be a loop.
+  property bool fontSizeAuto: true
+  property int manualFontSize: 13
   property real scrollSpeed: 1.0
   property bool autoScroll: false
   // Opens modest by default and grows to the share of the screen set in bar
@@ -52,6 +57,15 @@ Item {
   readonly property int minFontSize: 9
   readonly property int maxFontSize: 26
 
+  // Anchored on the shell's body token so a larger `font` base in shell.json
+  // carries through. Much tamer than the lyrics reader: tab notation is dense
+  // and column-aligned, so fitting more of it on screen beats bigger type.
+  readonly property int autoFontSize: {
+    var wanted = Style.font.body * (expanded ? 1.33 : 1.08)
+    return Math.round(Math.max(minFontSize, Math.min(maxFontSize, wanted)))
+  }
+  readonly property int fontSize: fontSizeAuto ? autoFontSize : manualFontSize
+
   readonly property var lines: ready ? Model.tabLines(tab.content, chordColor) : []
   readonly property string widestLine: ready ? Model.longestLine(tab.content) : ""
   readonly property int lineHeight: Math.ceil(lineFont.height * 1.15)
@@ -64,6 +78,13 @@ Item {
   readonly property real chromeHeight: chrome.implicitHeight + footer.implicitHeight + gap * 2
 
   readonly property real compactBodyHeight: Style.space(420)
+
+  // Tab notation is column-aligned, so it cannot reflow: a panel narrower than
+  // the widest line clips notes off the right edge instead. The popup takes its
+  // width from here so the tab decides how wide the panel is, up to the screen.
+  // Safe to feed back into the popup because the measurement depends only on
+  // the text and the font, never on how wide the panel ended up.
+  readonly property real naturalContentWidth: lineMetrics.width + Style.space(10)
 
   implicitWidth: Style.space(560)
   implicitHeight: {
@@ -89,7 +110,10 @@ Item {
   function applyPreferences(raw) {
     try {
       var stored = JSON.parse(String(raw || "{}"))
-      if (stored.fontSize) fontSize = Math.max(minFontSize, Math.min(maxFontSize, Number(stored.fontSize)))
+      if (stored.fontSize) manualFontSize = Math.max(minFontSize, Math.min(maxFontSize, Number(stored.fontSize)))
+      // Files written before Auto existed only hold the old default, so they
+      // should not be read as somebody having pinned the size.
+      if (stored.fontSizeAuto !== undefined) fontSizeAuto = stored.fontSizeAuto === true
       if (stored.scrollSpeed) scrollSpeed = Math.max(0.2, Math.min(5, Number(stored.scrollSpeed)))
       if (stored.expanded !== undefined) expanded = stored.expanded === true
       if (stored.instrument) instrument = Model.normalizeInstrument(stored.instrument)
@@ -102,7 +126,8 @@ Item {
   function savePreferences() {
     if (!preferencesLoaded) return
     preferencesFile.setText(JSON.stringify({
-      fontSize: fontSize,
+      fontSize: manualFontSize,
+      fontSizeAuto: fontSizeAuto,
       scrollSpeed: scrollSpeed,
       expanded: expanded,
       instrument: instrument
@@ -123,9 +148,16 @@ Item {
   }
 
   function setFontSize(size) {
-    var next = Math.max(minFontSize, Math.min(maxFontSize, Math.round(size)))
-    if (next === fontSize) return
-    fontSize = next
+    // Stepping reads from whatever is on screen, so the first press nudges the
+    // automatic size rather than jumping to one chosen ages ago.
+    manualFontSize = Math.max(minFontSize, Math.min(maxFontSize, Math.round(size)))
+    fontSizeAuto = false
+    savePreferences()
+  }
+
+  function useAutoFontSize() {
+    if (fontSizeAuto) return
+    fontSizeAuto = true
     savePreferences()
   }
 
@@ -323,8 +355,9 @@ Item {
           // vote count survive instead of being elided away.
           width: Math.max(Style.space(130),
                           controls.width - instrumentPicker.width - playButton.width
-                            - speedSlider.width - smallerButton.width - biggerButton.width
-                            - controls.spacing * 5)
+                            - speedSlider.width - autoSizeButton.width
+                            - smallerButton.width - biggerButton.width
+                            - controls.spacing * 6)
           anchors.verticalCenter: parent.verticalCenter
           label: "Version"
           showLabel: false
@@ -375,9 +408,20 @@ Item {
         }
 
         PanelActionButton {
+          id: autoSizeButton
+          anchors.verticalCenter: parent.verticalCenter
+          iconText: "\u{F0068}"
+          tooltipText: root.fontSizeAuto
+            ? "Text size follows the panel"
+            : "Let the text size follow the panel again"
+          foreground: root.fontSizeAuto ? Color.accent : root.foreground
+          onClicked: root.useAutoFontSize()
+        }
+
+        PanelActionButton {
           id: smallerButton
           anchors.verticalCenter: parent.verticalCenter
-          iconText: "\u{F0374}"
+          iconText: "\u{F09F3}"
           tooltipText: "Smaller text"
           foreground: root.foreground
           enabled: root.fontSize > root.minFontSize
@@ -387,7 +431,7 @@ Item {
         PanelActionButton {
           id: biggerButton
           anchors.verticalCenter: parent.verticalCenter
-          iconText: "\u{F0415}"
+          iconText: "\u{F09F4}"
           tooltipText: "Bigger text"
           foreground: root.foreground
           enabled: root.fontSize < root.maxFontSize
@@ -432,6 +476,34 @@ Item {
 
     // Reading a tab by hand and auto-scrolling are mutually exclusive.
     onMovementStarted: root.autoScroll = false
+
+      // The tab can still be wider or longer than the panel, so say so rather
+      // than leaving the reader to discover it by dragging.
+      // AsNeeded alone is not enough: it compares width to contentWidth, and
+      // when they are equal the ratio lands a hair under 1 through rounding, so
+      // a full-width handle appears that cannot move. Gate on real overflow.
+      ScrollBar.vertical: ScrollBar {
+        id: tabVBar
+        policy: tabFlick.contentHeight > tabFlick.height + 1
+          ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        contentItem: Rectangle {
+          implicitWidth: Style.space(4)
+          radius: width / 2
+          color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b,
+                         tabVBar.pressed ? 0.55 : 0.28)
+        }
+      }
+      ScrollBar.horizontal: ScrollBar {
+        id: tabHBar
+        policy: tabFlick.contentWidth > tabFlick.width + 1
+          ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
+        contentItem: Rectangle {
+          implicitHeight: Style.space(4)
+          radius: height / 2
+          color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b,
+                         tabHBar.pressed ? 0.55 : 0.28)
+        }
+      }
 
     delegate: Text {
       required property var modelData

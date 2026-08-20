@@ -269,7 +269,9 @@ function tabLines(content, chordColor) {
 // The widest line decides how far the reader can pan sideways. Tabs are
 // monospaced, so the longest line is also the widest one.
 function longestLine(content) {
-  var lines = plainTab(content).split("\n")
+  // Ultimate Guitar serves CRLF, and a stray carriage return both inflates the
+  // count by one and confuses the metrics that size the panel.
+  var lines = plainTab(content).replace(/\r\n/g, "\n").split("\n")
   var longest = ""
   for (var i = 0; i < lines.length; i++) {
     if (lines[i].length > longest.length) longest = lines[i]

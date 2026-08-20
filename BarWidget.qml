@@ -95,10 +95,21 @@ BarWidget {
     bar: root.bar
     owner: root
     open: root.popupOpen
-    contentWidth: popup.fittedContentWidth(
-      reader.expanded && popup.screenW > 0
+    // Wide enough for the tab itself, never wider than the screen.
+    //
+    // contentWidth is the card's box, padding included, and unlike
+    // fittedContentHeight -- which adds its inset for you -- fittedContentWidth
+    // only clamps. Asking for the bare text width therefore handed the reader
+    // padding*2 less than it needed and clipped the longest line.
+    readonly property real horizontalInset: popup.padding * 2
+      + Border.left(popup.borderSpec) + Border.right(popup.borderSpec)
+    contentWidth: {
+      var floor = reader.expanded && popup.screenW > 0
         ? popup.screenW * root.panelWidthPercent / 100
-        : Style.space(560))
+        : Style.space(560)
+      return popup.fittedContentWidth(
+        Math.max(floor, reader.naturalContentWidth + popup.horizontalInset))
+    }
     contentHeight: popup.fittedContentHeight(reader.implicitHeight)
     onOpenChanged: if (!open) root.popupOpen = false
 
