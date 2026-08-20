@@ -296,14 +296,17 @@ function longestLine(content) {
 // redirect wearing a trusted label, so a URL is only handed on if it really is
 // theirs. Mirrors the guard in bin/ug-tabs, which refuses to fetch anything
 // else either.
-var ALLOWED_HOST = "ultimate-guitar.com"
+// Anchored on purpose, and deliberately not a parser. Picking the host apart
+// with string splits disagreed with the WHATWG parser browsers use: in
+// `https://evil.example\\@ultimate-guitar.com/` a browser treats the backslash
+// as a separator and goes to evil.example, while splitting on "@" reads the
+// tail and calls it ours. Matching the whole URL against a strict shape leaves
+// no authority to misread, since userinfo, backslashes, ports and whitespace
+// simply fail to match.
+var ALLOWED_URL = /^https:\/\/(?:[a-z0-9-]+\.)*ultimate-guitar\.com(?:\/[^\s]*)?$/i
 
 function isAllowedUrl(url) {
-  var text = String(url || "")
-  if (text.slice(0, 8).toLowerCase() !== "https://") return false
-  var rest = text.slice(8)
-  var host = rest.split("/")[0].split("?")[0].split("#")[0].split("@").pop().split(":")[0].toLowerCase()
-  return host === ALLOWED_HOST || host.slice(-(ALLOWED_HOST.length + 1)) === "." + ALLOWED_HOST
+  return ALLOWED_URL.test(String(url === null || url === undefined ? "" : url))
 }
 
 // The URL if it is safe to open, otherwise nothing, so a control bound to it

@@ -42,17 +42,21 @@ class BlockedUrl(Exception):
 # are treated as untrusted input rather than as addresses. Without this the
 # helper would happily open file:// paths or reach loopback, link-local and
 # other private services on the machine running it.
-ALLOWED_HOSTS = ("ultimate-guitar.com",)
+ALLOWED_URL = re.compile(
+    r"^https://(?:[a-z0-9-]+\.)*ultimate-guitar\.com(?:/[^\s]*)?$", re.I)
 
 
 def check_url(url):
-    parts = urllib.parse.urlsplit(str(url or ""))
-    if parts.scheme != "https":
-        raise BlockedUrl("refusing to fetch a %s URL; only https is followed"
-                         % (parts.scheme or "scheme-less"))
-    host = (parts.hostname or "").lower()
-    if not any(host == allowed or host.endswith("." + allowed) for allowed in ALLOWED_HOSTS):
-        raise BlockedUrl("refusing to fetch from %s" % (host or "an unnamed host"))
+    r"""Match the whole URL against a strict shape rather than parsing it.
+
+    Picking a host out of a URL invites disagreement with whatever parser sees
+    it next. `https://evil.example\@ultimate-guitar.com/` reads as ours to anything
+    splitting on "@", while a browser treats the backslash as a separator and
+    goes to evil.example. There is no authority to misread here: userinfo,
+    backslashes, ports and whitespace all fail the match outright.
+    """
+    if not ALLOWED_URL.match(str(url or "")):
+        raise BlockedUrl("refusing to fetch %s" % (url or "an empty URL"))
     return url
 
 

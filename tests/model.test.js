@@ -263,3 +263,34 @@ test("a crafted tab type cannot smuggle markup into a dropdown label", () => {
   assert.ok(!label.includes(">"), label)
   assert.ok(!Model.typeLabel("<img src=x>").includes("<"))
 })
+
+test("the guard never disagrees with a real URL parser", () => {
+  // The bypass that got through was a hand-rolled host split disagreeing with
+  // the WHATWG parser a browser uses. Rather than trust the pattern by eye,
+  // check the property directly: anything allowed must genuinely resolve to an
+  // Ultimate Guitar host.
+  const tricky = [
+    "https://tabs.ultimate-guitar.com/tab/x-1",
+    "https://www.ultimate-guitar.com/search.php?value=a+b",
+    "https://ultimate-guitar.com",
+    "https://evil.example\\@ultimate-guitar.com/",
+    "https://evil.example@ultimate-guitar.com/",
+    "https://ultimate-guitar.com\\@evil.example/",
+    "https://ultimate-guitar.com.evil.example/x",
+    "https://notultimate-guitar.com/x",
+    "https://ultimate-guitar.com:8080/x",
+    "https://ultimate-guitar.com\t.evil.example/x",
+    "http://tabs.ultimate-guitar.com/x",
+    "file:///etc/passwd",
+    "javascript:alert(1)",
+  ]
+  for (const url of tricky) {
+    if (!Model.isAllowedUrl(url)) continue
+    let host = null
+    try { host = new URL(url).host } catch (error) { host = null }
+    assert.ok(host === "ultimate-guitar.com" || (host && host.endsWith(".ultimate-guitar.com")),
+      `allowed ${JSON.stringify(url)} but a parser resolves it to ${host}`)
+  }
+  // And the specific shape that was reported.
+  assert.equal(Model.isAllowedUrl("https://evil.example\\@ultimate-guitar.com/"), false)
+})
