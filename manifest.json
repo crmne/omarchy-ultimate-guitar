@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "id": "crmne.ultimate-guitar",
+  "name": "Ultimate Guitar Tabs",
+  "version": "1.0.0",
+  "author": "Carmine Paolino",
+  "license": "MIT",
+  "description": "Shows the Ultimate Guitar tab for whatever is playing. Reads the track from MPRIS, picks the best-rated tab for it, and renders it in the bar with auto-scroll, a version switcher, and text sizing.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Ultimate Guitar tabs",
+    "description": "The tab for the song that is playing, with auto-scroll and a version switcher.",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "preferredType": "Tablature",
+      "hideWhenIdle": true,
+      "panelWidthPercent": 50,
+      "panelHeightPercent": 100
+    },
+    "schema": [
+      {
+        "key": "preferredType",
+        "type": "enum",
+        "label": "Preferred tab type",
+        "description": "Which kind of tab to open first when a song has several. The other kinds stay available in the version switcher.",
+        "options": [
+          "Tablature",
+          "Chord sheets"
+        ],
+        "defaultValue": "Tablature"
+      },
+      {
+        "key": "panelWidthPercent",
+        "type": "integer",
+        "label": "Expanded width (% of screen)",
+        "description": "How wide the reader grows when expanded with the button in its header. It always opens compact.",
+        "min": 20,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 50
+      },
+      {
+        "key": "panelHeightPercent",
+        "type": "integer",
+        "label": "Expanded height (% of screen)",
+        "description": "The tallest the reader may grow when expanded. Short tabs still shrink the panel to fit.",
+        "min": 30,
+        "max": 100,
+        "step": 5,
+        "defaultValue": 100
+      },
+      {
+        "key": "hideWhenIdle",
+        "type": "boolean",
+        "label": "Hide when nothing is playing",
+        "description": "Keep the bar clear until a player reports a track.",
+        "defaultValue": true
+      }
+    ]
+  }
+}

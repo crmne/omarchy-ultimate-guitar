@@ -1,0 +1,205 @@
+#!/usr/bin/env python3
+"""Fetch Ultimate Guitar search results and tabs as JSON.
+
+Network and parsing layer for the crmne.ultimate-guitar Omarchy plugin. The
+shell plugin never talks to the network itself; it runs this script and reads
+one JSON object from stdout.
+
+Ultimate Guitar renders both search results and tab pages server-side and
+embeds the page state as JSON in a `<div class="js-store" data-content="...">`
+element, so a plain HTTPS GET is enough -- no API key, no account, no headless
+browser. Everything this plugin shows is public: the tab text, the version
+list, and the link to an official tab when one exists.
+"""
+
+import argparse
+import gzip
+import hashlib
+import html
+import json
+import os
+import re
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+
+UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
+      "Chrome/126.0.0.0 Safari/537.36")
+SEARCH_URL = "https://www.ultimate-guitar.com/search.php"
+STORE_RE = re.compile(r'<div class="js-store" data-content="(.*?)"></div>', re.S)
+CACHE_DIR = os.path.join(
+    os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")),
+    "omarchy", "ultimate-guitar")
+
+
+class TabMissing(Exception):
+    """The page we asked for is gone -- distinct from a bug or a network fault."""
+
+
+# --- fetching --------------------------------------------------------------
+
+def fetch_store(url, timeout=20, missing_ok=False):
+    """GET `url` and return the page-state JSON Ultimate Guitar embeds in it.
+
+    With `missing_ok`, a 404 returns None instead of raising: Ultimate Guitar
+    answers a search that matches nothing with 404 rather than an empty result
+    list, and "this song has no tabs" is an ordinary outcome, not a failure.
+    """
+    headers = {"User-Agent": UA, "Accept-Encoding": "gzip",
+               "Accept-Language": "en-US,en;q=0.9"}
+    request = urllib.request.Request(url, headers=headers)
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            raw = response.read()
+            if response.headers.get("Content-Encoding") == "gzip":
+                raw = gzip.decompress(raw)
+    except urllib.error.HTTPError as exc:
+        if missing_ok and exc.code == 404:
+            return None
+        raise
+    match = STORE_RE.search(raw.decode("utf-8", "replace"))
+    if not match:
+        raise ValueError("page state not found (Ultimate Guitar changed its markup?)")
+    return json.loads(html.unescape(match.group(1)))["store"]
+
+
+def cached(key, ttl, produce):
+    path = os.path.join(CACHE_DIR, hashlib.sha1(key.encode()).hexdigest() + ".json")
+    try:
+        if time.time() - os.path.getmtime(path) < ttl:
+            with open(path, encoding="utf-8") as handle:
+                return json.load(handle)
+    except (OSError, ValueError):
+        pass
+    payload = produce()
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+    except OSError:
+        pass
+    return payload
+
+
+# --- shaping ---------------------------------------------------------------
+
+def shape_result(item):
+    return {
+        "id": item.get("id"),
+        "song": item.get("song_name") or "",
+        "artist": item.get("artist_name") or "",
+        "type": item.get("type") or "",
+        "typeLabel": item.get("typeLabel") or item.get("type") or "",
+        "url": item.get("tab_url") or "",
+        "rating": item.get("rating") or 0,
+        "votes": item.get("votes") or 0,
+        "version": item.get("version") or 0,
+        "versionDescription": item.get("version_description") or "",
+        "access": item.get("tab_access_type") or "",
+        "marketing": item.get("marketing_type") or "",
+        "tonality": item.get("tonality_name") or "",
+        "difficulty": item.get("difficulty") or "",
+        "verified": bool(item.get("verified")),
+    }
+
+
+def shape_tab(store):
+    data = store.get("page", {}).get("data", {})
+    tab = data.get("tab") or {}
+    view = data.get("tab_view") or {}
+    meta = view.get("meta") or {}
+    tuning = meta.get("tuning") or {}
+    versions = [shape_result(v) for v in (view.get("versions") or []) if v.get("tab_url")]
+    official_url = view.get("official_tab_url") or ""
+    return {
+        "song": tab.get("song_name") or "",
+        "artist": tab.get("artist_name") or "",
+        "type": tab.get("type") or "",
+        "url": tab.get("tab_url") or "",
+        "version": tab.get("version") or 0,
+        "rating": tab.get("rating") or 0,
+        "votes": tab.get("votes") or 0,
+        "difficulty": meta.get("difficulty") or tab.get("difficulty") or "",
+        "key": meta.get("tonality") or tab.get("tonality_name") or "",
+        "capo": meta.get("capo") or 0,
+        "tuningName": tuning.get("name") or "",
+        "tuning": tuning.get("value") or "",
+        "content": (view.get("wiki_tab") or {}).get("content") or "",
+        "versions": versions,
+        "official": {
+            "url": official_url,
+            "available": bool(view.get("has_official_version") or official_url),
+        },
+        "proUrl": data.get("best_pro_tab_url") or "",
+    }
+
+
+# --- commands --------------------------------------------------------------
+
+def cmd_search(args):
+    query = args.query.strip()
+    if not query:
+        return {"ok": False, "error": "empty query", "code": "query"}
+
+    def produce():
+        url = SEARCH_URL + "?" + urllib.parse.urlencode(
+            {"search_type": "title", "value": query})
+        store = fetch_store(url, missing_ok=True)
+        if store is None:
+            return {"results": []}
+        data = store.get("page", {}).get("data", {})
+        return {"results": [shape_result(r) for r in (data.get("results") or [])
+                            if r.get("tab_url")]}
+
+    payload = produce() if args.no_cache else cached("search:" + query, args.search_ttl, produce)
+    return {"ok": True, "query": query, **payload}
+
+
+def cmd_tab(args):
+    def produce():
+        store = fetch_store(args.url, missing_ok=True)
+        if store is None:
+            raise TabMissing("That tab is no longer on Ultimate Guitar")
+        return {"tab": shape_tab(store)}
+
+    payload = produce() if args.no_cache else cached("tab:" + args.url, args.tab_ttl, produce)
+    if not payload.get("tab", {}).get("content"):
+        payload.setdefault("note", "this tab has no text content (official tabs are "
+                                   "rendered by Ultimate Guitar's own player)")
+    return {"ok": True, **payload}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("--no-cache", action="store_true")
+    parser.add_argument("--search-ttl", type=int, default=6 * 3600)
+    parser.add_argument("--tab-ttl", type=int, default=7 * 86400)
+    sub = parser.add_subparsers(dest="command", required=True)
+    search = sub.add_parser("search", help="search tabs by 'artist title'")
+    search.add_argument("query")
+    tab = sub.add_parser("tab", help="fetch one tab page")
+    tab.add_argument("url")
+
+    args = parser.parse_args()
+    handlers = {"search": cmd_search, "tab": cmd_tab}
+    try:
+        payload = handlers[args.command](args)
+    except TabMissing as exc:
+        payload = {"ok": False, "code": "missing", "error": str(exc)}
+    except urllib.error.HTTPError as exc:
+        payload = {"ok": False, "code": "http", "error": "Ultimate Guitar returned HTTP %d" % exc.code}
+    except urllib.error.URLError as exc:
+        payload = {"ok": False, "code": "network", "error": "cannot reach Ultimate Guitar: %s" % exc.reason}
+    except ValueError as exc:
+        payload = {"ok": False, "code": "parse", "error": str(exc)}
+    except Exception as exc:
+        payload = {"ok": False, "code": "internal", "error": "%s: %s" % (type(exc).__name__, exc)}
+    json.dump(payload, sys.stdout)
+    sys.stdout.write("\n")
+    return 0 if payload.get("ok") else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

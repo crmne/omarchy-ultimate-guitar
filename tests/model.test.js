@@ -1,0 +1,166 @@
+const test = require("node:test")
+const assert = require("node:assert/strict")
+const Model = require("../Model.js")
+
+test("MPRIS remaster and feature suffixes are stripped, with the raw title kept as a fallback", () => {
+  assert.equal(Model.cleanTitle("Creep - 2011 Remaster"), "Creep")
+  assert.equal(Model.cleanTitle("Song Name (Remastered 2015)"), "Song Name")
+  assert.equal(Model.cleanTitle("Song Name (feat. Someone)"), "Song Name")
+  assert.equal(Model.cleanTitle("Song Name [Explicit]"), "Song Name")
+  assert.equal(Model.cleanArtist("Band Name feat. Guest"), "Band Name")
+  // Ampersands belong to the artist, not to a feature credit.
+  assert.equal(Model.cleanArtist("Simon & Garfunkel"), "Simon & Garfunkel")
+  // A title that is only noise must not clean away to nothing.
+  assert.equal(Model.cleanTitle("Live"), "Live")
+
+  assert.deepEqual(Model.searchQueries("Radiohead", "Creep - 2011 Remaster"),
+    ["Radiohead Creep", "Radiohead Creep - 2011 Remaster"])
+  // No fallback query when cleaning changed nothing.
+  assert.deepEqual(Model.searchQueries("Radiohead", "Creep"), ["Radiohead Creep"])
+})
+
+test("only tab types with a text body are renderable, ranked by the configured preference", () => {
+  assert.equal(Model.typeWeight("Official", "tabs"), 0, "official tabs are player binaries")
+  assert.equal(Model.typeWeight("Pro", "tabs"), 0)
+  assert.equal(Model.typeWeight("Video", "tabs"), 0)
+  assert.ok(Model.typeWeight("Tabs", "tabs") > Model.typeWeight("Chords", "tabs"))
+  assert.ok(Model.typeWeight("Chords", "chords") > Model.typeWeight("Tabs", "chords"))
+  assert.ok(Model.typeWeight("Bass Tabs", "tabs") > 0)
+})
+
+test("the settings label drives the type preference", () => {
+  // The bar settings UI stores the label the user picked, not a token.
+  assert.ok(Model.prefersChords("Chord sheets"))
+  assert.ok(Model.prefersChords("chords"))
+  assert.ok(!Model.prefersChords("Tablature"))
+  assert.ok(!Model.prefersChords(""))
+  assert.equal(Model.typeWeight("Chords", "Chord sheets"), Model.typeWeight("Chords", "chords"))
+  assert.ok(Model.typeWeight("Chords", "Chord sheets") > Model.typeWeight("Tabs", "Chord sheets"))
+})
+
+test("a well-voted tab beats a thinly-voted perfect score", () => {
+  const popular = { song: "Creep", artist: "Radiohead", type: "Tabs", rating: 4.6, votes: 40000 }
+  const untested = { song: "Creep", artist: "Radiohead", type: "Tabs", rating: 5, votes: 2 }
+  const results = [untested, popular]
+  assert.equal(Model.pickBest(results, "Radiohead", "Creep", "tabs"), popular)
+})
+
+test("the preferred type wins even when another type is rated higher", () => {
+  const chords = { song: "Creep", artist: "Radiohead", type: "Chords", rating: 4.9, votes: 40000 }
+  const tabs = { song: "Creep", artist: "Radiohead", type: "Tabs", rating: 4.2, votes: 900 }
+  assert.equal(Model.pickBest([chords, tabs], "Radiohead", "Creep", "tabs"), tabs)
+  assert.equal(Model.pickBest([chords, tabs], "Radiohead", "Creep", "chords"), chords)
+})
+
+test("a matching artist outranks a same-titled song by someone else", () => {
+  const cover = { song: "Creep", artist: "Some Cover Band", type: "Tabs", rating: 5, votes: 90000 }
+  const original = { song: "Creep", artist: "Radiohead", type: "Tabs", rating: 4.1, votes: 30 }
+  assert.equal(Model.pickBest([cover, original], "Radiohead", "Creep", "tabs"), original)
+})
+
+test("nothing is picked when no result is the song that is playing", () => {
+  const other = { song: "A Different Song", artist: "Radiohead", type: "Tabs", rating: 5, votes: 5000 }
+  assert.equal(Model.pickBest([other], "Radiohead", "Creep", "tabs"), null)
+  assert.equal(Model.pickBest([], "Radiohead", "Creep", "tabs"), null)
+  assert.equal(Model.pickBest(null, "Radiohead", "Creep", "tabs"), null)
+})
+
+test("only renderable versions reach the version dropdown, best first", () => {
+  const versions = [
+    { type: "Official", version: 1, rating: 5, votes: 10000, url: "https://u/official" },
+    { type: "Chords", version: 2, rating: 4.8, votes: 4000, url: "https://u/chords" },
+    { type: "Tabs", version: 3, rating: 4.1, votes: 100, url: "https://u/tabs" },
+    { type: "Tabs", version: 4, rating: 4.9, votes: 8000, url: "https://u/tabs-good" },
+    { type: "Chords", version: 5, rating: 5, votes: 1, url: "" }
+  ]
+  const ranked = Model.renderableVersions(versions, "tabs")
+  assert.deepEqual(ranked.map(v => v.version), [4, 3, 2], "no official, no url-less entry")
+})
+
+test("chord markers become colored spans and every alignment space survives", () => {
+  const rendered = Model.renderTab("[ch]Am[/ch]  [ch]G[/ch]\nplaceholder words", "#ff0000")
+  assert.equal(rendered,
+    '<span style="color:#ff0000">Am</span>&nbsp;&nbsp;' +
+    '<span style="color:#ff0000">G</span><br/>placeholder&nbsp;words')
+})
+
+test("tab block markers are dropped without disturbing the notation inside", () => {
+  assert.equal(Model.renderTab("[tab]e|--0--|[/tab]", "#fff"), "e|--0--|")
+  assert.equal(Model.plainTab("[tab][ch]Am[/ch] e|--0--|[/tab]"), "Am e|--0--|")
+})
+
+test("tab text cannot inject markup into the rich text view", () => {
+  const rendered = Model.renderTab("<script>alert(1)</script> & \"quotes\"", "#fff")
+  assert.ok(!rendered.includes("<script>"))
+  assert.ok(rendered.includes("&lt;script&gt;"))
+  assert.ok(rendered.includes("&amp;"))
+})
+
+test("an unclosed chord marker colors the rest instead of throwing", () => {
+  assert.equal(Model.renderTab("[ch]Am", "#fff"), '<span style="color:#fff">Am</span>')
+  assert.equal(Model.renderTab("[/ch]Am", "#fff"), "Am")
+  assert.equal(Model.renderTab("", "#fff"), "")
+  assert.equal(Model.renderTab(null, "#fff"), "")
+})
+
+test("the reader gets one entry per line, rich only where chords appear", () => {
+  const lines = Model.tabLines("[ch]Am[/ch] here\n[tab]e|--0--|[/tab]\n", "#f00")
+  assert.equal(lines.length, 3, "trailing newline keeps its empty line")
+  assert.deepEqual(lines[0], { text: '<span style="color:#f00">Am</span>&nbsp;here', rich: true })
+  assert.deepEqual(lines[1], { text: "e|--0--|", rich: false })
+  assert.deepEqual(lines[2], { text: "", rich: false })
+
+  // Plain tablature must not pay for rich text at all.
+  const tab = Model.tabLines("e|--0--|\nB|--2--|", "#f00")
+  assert.ok(tab.every(l => l.rich === false))
+
+  assert.deepEqual(Model.tabLines("", "#f00"), [{ text: "", rich: false }])
+  assert.deepEqual(Model.tabLines(null, "#f00"), [{ text: "", rich: false }])
+})
+
+test("the widest line is measured without its markup", () => {
+  assert.equal(Model.longestLine("ab\nabcd\nabc"), "abcd")
+  // Markers would otherwise make a short line look like the widest one.
+  assert.equal(Model.longestLine("[ch]Am[/ch]\nabcdef"), "abcdef")
+  assert.equal(Model.longestLine(""), "")
+})
+
+test("vote counts and metadata read the way they do on the site", () => {
+  assert.equal(Model.formatVotes(43754), "43.8k")
+  assert.equal(Model.formatVotes(4797), "4.8k")
+  assert.equal(Model.formatVotes(414), "414")
+  assert.equal(Model.formatRating(4.87157, 43754), "★4.9 (43.8k)")
+  assert.equal(Model.formatRating(0, 0), "")
+
+  assert.equal(
+    Model.metaLine({ type: "Chords", version: 1, rating: 4.87157, votes: 43754, key: "G",
+                     capo: 0, tuningName: "Standard", tuning: "E A D G B E", difficulty: "novice" }),
+    "Chords · Ver 1 · ★4.9 (43.8k) · Key G · E A D G B E · novice")
+  assert.equal(
+    Model.metaLine({ type: "Tabs", version: 2, capo: 2, tuningName: "Drop D" }),
+    "Tabs · Ver 2 · Capo 2 · Drop D tuning")
+  assert.equal(Model.metaLine(null), "")
+})
+
+test("the fallback search link points at the cleaned query", () => {
+  assert.equal(Model.searchPageUrl("Radiohead", "Creep - 2011 Remaster"),
+    "https://www.ultimate-guitar.com/search.php?search_type=title&value=Radiohead%20Creep")
+})
+
+test("an ampersand in a track title matches the spelled-out catalogue entry", () => {
+  // Players report "Forty Six & 2"; Ultimate Guitar files it as "Forty Six And 2".
+  assert.equal(Model.normalize("Forty Six & 2"), "forty six and 2")
+  assert.ok(Model.looseMatch("Forty Six & 2", "Forty Six And 2"))
+  assert.ok(Model.looseMatch("Simon & Garfunkel", "Simon and Garfunkel"))
+
+  const tab = { song: "Forty Six And 2", artist: "Tool", type: "Tabs", rating: 4.8, votes: 900 }
+  assert.equal(Model.pickBest([tab], "TOOL", "Forty Six & 2", "tabs"), tab)
+})
+
+test("accents and punctuation do not stop a title from matching", () => {
+  assert.ok(Model.looseMatch("Café del Mar", "Cafe del Mar"))
+  assert.ok(Model.looseMatch("Don't Stop", "Dont Stop"))
+  assert.ok(Model.looseMatch("Creep", "Creep (Acoustic)"))
+  assert.ok(!Model.looseMatch("Creep", "Karma Police"))
+  assert.ok(!Model.looseMatch("", "Creep"))
+})
