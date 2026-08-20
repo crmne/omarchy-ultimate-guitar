@@ -6,6 +6,8 @@ The widget reads the current track from MPRIS, finds the best-rated tab for it
 on Ultimate Guitar, and renders it right in the shell: chords colored, columns
 aligned, with auto-scroll for when both your hands are on the guitar.
 
+![Ultimate Guitar Tabs in the Omarchy bar](preview.png)
+
 `guitar icon` · `song + artist` · `version switcher` · `auto-scroll` · `text size`
 
 ## Install
