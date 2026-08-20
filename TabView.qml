@@ -86,6 +86,14 @@ Item {
   // the text and the font, never on how wide the panel ended up.
   readonly property real naturalContentWidth: lineMetrics.width + Style.space(10)
 
+  // The version label carries the rating and vote count, so it gets the width
+  // it actually needs and the speed slider gives up the difference. Reserving
+  // the slider's minimum first means the label shrinks rather than pushing the
+  // slider out of the row entirely.
+  readonly property real versionNaturalWidth: versionMetrics.width + Style.space(46)
+  readonly property real sliderMinWidth: Style.space(54)
+  readonly property real sliderMaxWidth: Style.space(120)
+
   implicitWidth: Style.space(560)
   implicitHeight: {
     var body = expanded ? naturalBodyHeight
@@ -98,6 +106,13 @@ Item {
     id: lineFont
     font.family: "monospace"
     font.pixelSize: root.fontSize
+  }
+
+  TextMetrics {
+    id: versionMetrics
+    font.family: Style.font.family
+    font.pixelSize: Style.font.body
+    text: Model.versionLabel(root.tab)
   }
 
   TextMetrics {
@@ -224,13 +239,39 @@ Item {
 
     Item {
       width: parent.width
-      height: heading.implicitHeight
+      height: Math.max(albumArt.height, heading.implicitHeight)
+
+      // Whatever cover the player is offering. Hidden rather than left as an
+      // empty square when a track has none, or while it is still loading.
+      Rectangle {
+        id: albumArt
+        anchors.left: parent.left
+        anchors.verticalCenter: parent.verticalCenter
+        width: visible ? Style.space(42) : 0
+        height: Style.space(42)
+        radius: Style.space(6)
+        clip: true
+        visible: cover.status === Image.Ready
+        color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.08)
+
+        Image {
+          id: cover
+          anchors.fill: parent
+          source: root.service ? root.service.artUrl : ""
+          fillMode: Image.PreserveAspectCrop
+          asynchronous: true
+          sourceSize.width: 128
+          sourceSize.height: 128
+        }
+      }
 
       Column {
         id: heading
-        anchors.left: parent.left
+        anchors.left: albumArt.visible ? albumArt.right : parent.left
+        anchors.leftMargin: albumArt.visible ? Style.space(10) : 0
         anchors.right: headerActions.left
         anchors.rightMargin: Style.space(8)
+        anchors.verticalCenter: parent.verticalCenter
         spacing: Style.space(2)
 
         Text {
@@ -319,16 +360,19 @@ Item {
 
     Item {
       width: parent.width
-      height: controls.implicitHeight
+      height: Math.max(controls.implicitHeight, playbackControls.implicitHeight)
       visible: root.ready
 
+      // Pickers left at the width their labels need, everything you press
+      // packed against the right edge, and the slack left in between.
       Row {
         id: controls
-        width: parent.width
+        anchors.left: parent.left
+        anchors.right: playbackControls.left
+        anchors.rightMargin: Style.space(10)
+        anchors.verticalCenter: parent.verticalCenter
         spacing: Style.space(6)
 
-        // Row has no alignment of its own, so every child centers itself
-        // against the tallest one -- the dropdowns.
         Dropdown {
           id: instrumentPicker
           // Fixed: it only ever holds one of five short labels, so growing it
@@ -351,13 +395,11 @@ Item {
 
         Dropdown {
           id: versionPicker
-          // Takes everything the fixed-width controls leave, so the rating and
-          // vote count survive instead of being elided away.
-          width: Math.max(Style.space(130),
-                          controls.width - instrumentPicker.width - playButton.width
-                            - speedSlider.width - autoSizeButton.width
-                            - smallerButton.width - biggerButton.width
-                            - controls.spacing * 6)
+          // Sized to its own label, so the rating and vote count survive rather
+          // than being elided, and never past what the row leaves it.
+          width: Math.max(Style.space(110),
+                          Math.min(root.versionNaturalWidth,
+                                   controls.width - instrumentPicker.width - controls.spacing))
           anchors.verticalCenter: parent.verticalCenter
           label: "Version"
           showLabel: false
@@ -379,6 +421,13 @@ Item {
             if (root.service && value && value !== root.service.tabUrl) root.service.loadTab(value)
           }
         }
+      }
+
+      Row {
+        id: playbackControls
+        anchors.right: parent.right
+        anchors.verticalCenter: parent.verticalCenter
+        spacing: Style.space(4)
 
         PanelActionButton {
           id: playButton
@@ -391,9 +440,11 @@ Item {
 
         PanelSlider {
           id: speedSlider
-          // Capped: past a point a longer slider buys no precision, and the
-          // width is better spent on the version label.
-          width: Math.min(Style.space(130), Math.max(Style.space(70), parent.width * 0.18))
+          // Capped, and sized only from the panel: a longer runway for the
+          // speed handle buys no real precision, and the extra room on a wide
+          // panel belongs to the tab.
+          width: Math.max(root.sliderMinWidth,
+                          Math.min(root.sliderMaxWidth, root.width * 0.16))
           anchors.verticalCenter: parent.verticalCenter
           bar: root.bar
           minimum: 0.2

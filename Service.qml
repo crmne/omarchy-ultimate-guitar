@@ -39,6 +39,7 @@ Item {
   readonly property bool hasMedia: activePlayer !== null && title !== ""
   readonly property string title: activePlayer ? String(activePlayer.trackTitle || "") : ""
   readonly property string artist: activePlayer ? String(activePlayer.trackArtist || "") : ""
+  readonly property string artUrl: activePlayer ? String(activePlayer.trackArtUrl || "") : ""
   readonly property string trackKey: hasMedia ? artist + " " + title : ""
   readonly property string nowPlaying: {
     if (!hasMedia) return ""
