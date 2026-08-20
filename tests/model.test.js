@@ -43,6 +43,19 @@ test("an instrument can be named by id, by picker label, or by the older wording
   assert.equal(Model.instrumentLabel("bass"), "Bass")
 })
 
+test("tab types are named the way a person would say them", () => {
+  // "Tabs" + " tab" reads as nonsense, and "Bass Tabs" is plural for one tab.
+  assert.equal(Model.typeLabel("Tabs"), "Guitar tab")
+  assert.equal(Model.typeLabel("Chords"), "Guitar chords")
+  assert.equal(Model.typeLabel("Bass Tabs"), "Bass tab")
+  assert.equal(Model.typeLabel("Ukulele Chords"), "Ukulele chords")
+  assert.equal(Model.typeLabel("Drum Tabs"), "Drum tab")
+  // Anything unmapped is passed through rather than mangled.
+  assert.equal(Model.typeLabel("Video"), "Video")
+  assert.equal(Model.typeLabel(""), "")
+  assert.equal(Model.typeLabel(null), "")
+})
+
 test("the chosen instrument outranks every other type", () => {
   assert.ok(Model.typeWeight("Bass Tabs", "bass") > Model.typeWeight("Tabs", "bass"))
   assert.ok(Model.typeWeight("Ukulele Chords", "ukulele") > Model.typeWeight("Chords", "ukulele"))

@@ -93,6 +93,21 @@ function instrumentLabel(value) {
   return instrumentFor(value).label
 }
 
+// Ultimate Guitar's own type names do not read as English on their own:
+// "Tabs" + " tab" is nonsense, and "Bass Tabs" is plural for one tab.
+function typeLabel(type) {
+  switch (String(type || "")) {
+  case "Tabs": return "Guitar tab"
+  case "Chords": return "Guitar chords"
+  case "Bass Tabs": return "Bass tab"
+  case "Ukulele Chords": return "Ukulele chords"
+  case "Drum Tabs": return "Drum tab"
+  case "Power": return "Power chords"
+  case "Official": return "Official tab"
+  }
+  return String(type || "")
+}
+
 function typeWeight(type, instrument) {
   var candidate = String(type || "")
   if (RENDERABLE_TYPES.indexOf(candidate) === -1) return 0
@@ -278,6 +293,7 @@ if (typeof module !== "undefined") {
     normalizeInstrument: normalizeInstrument,
     instrumentFor: instrumentFor,
     instrumentLabel: instrumentLabel,
+    typeLabel: typeLabel,
     typeWeight: typeWeight,
     looseMatch: looseMatch,
     confidence: confidence,

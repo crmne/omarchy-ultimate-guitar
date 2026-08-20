@@ -162,7 +162,23 @@ Item {
       tabFlick.contentY = 0
       tabFlick.contentX = 0
       root.autoScroll = false
+      // Dropdown assigns its own `value` when something is picked, which
+      // destroys the binding that kept it on the loaded tab. Without this the
+      // next song leaves the previous URL sitting in the field, and since no
+      // option matches it, the field shows the raw URL.
+      versionPicker.value = root.service.tabUrl
     }
+  }
+
+  // Same for the instrument, for the same reason.
+  onInstrumentChanged: instrumentPicker.value = instrument
+
+  // The dropdowns are their own popups; closing the panel has to take them
+  // with it or they are left floating over the desktop.
+  onActiveChanged: {
+    if (active) return
+    instrumentPicker.close()
+    versionPicker.close()
   }
 
   // --- header and controls, pinned to the top ------------------------------

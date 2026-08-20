@@ -42,7 +42,7 @@ Item {
   readonly property string trackKey: hasMedia ? artist + " " + title : ""
   readonly property string nowPlaying: {
     if (!hasMedia) return ""
-    return artist ? artist + "  " + title : title
+    return artist ? artist + " \u2014 " + title : title
   }
 
   function isProxy(player) {
