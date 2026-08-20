@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "crmne.ultimate-guitar",
   "name": "Ultimate Guitar Tabs",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "author": "Carmine Paolino",
   "license": "MIT",
   "description": "Shows the Ultimate Guitar tab for whatever you are playing. It picks the track up from your media player, finds the best-rated tab for it, and renders it in the bar with auto-scroll, a version switcher, and text sizing.",

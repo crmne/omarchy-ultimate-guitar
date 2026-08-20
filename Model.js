@@ -163,7 +163,9 @@ function pickBest(results, artist, title, prefer) {
 // dropdown should present them: renderable ones first, best first.
 function renderableVersions(versions, prefer) {
   var list = (versions || []).filter(function (version) {
-    return typeWeight(version.type, prefer) > 0 && version.url
+    // A version pointing somewhere other than Ultimate Guitar could not be
+    // fetched anyway, and must never reach the dropdown as something to open.
+    return typeWeight(version.type, prefer) > 0 && isAllowedUrl(version.url)
   })
   return list.sort(function (a, b) {
     var delta = typeWeight(b.type, prefer) - typeWeight(a.type, prefer)
@@ -279,6 +281,28 @@ function longestLine(content) {
   return longest
 }
 
+// Tab and official-tab URLs arrive from Ultimate Guitar's page state, and the
+// panel hands them to the browser behind controls labelled as Ultimate Guitar
+// links. A response naming somewhere else would turn those into an open
+// redirect wearing a trusted label, so a URL is only handed on if it really is
+// theirs. Mirrors the guard in bin/ug-tabs, which refuses to fetch anything
+// else either.
+var ALLOWED_HOST = "ultimate-guitar.com"
+
+function isAllowedUrl(url) {
+  var text = String(url || "")
+  if (text.slice(0, 8).toLowerCase() !== "https://") return false
+  var rest = text.slice(8)
+  var host = rest.split("/")[0].split("?")[0].split("#")[0].split("@").pop().split(":")[0].toLowerCase()
+  return host === ALLOWED_HOST || host.slice(-(ALLOWED_HOST.length + 1)) === "." + ALLOWED_HOST
+}
+
+// The URL if it is safe to open, otherwise nothing, so a control bound to it
+// disappears rather than presenting a link that goes somewhere else.
+function externalUrl(url) {
+  return isAllowedUrl(url) ? String(url) : ""
+}
+
 function searchPageUrl(artist, title) {
   var query = (cleanArtist(artist) + " " + cleanTitle(title)).trim()
   return "https://www.ultimate-guitar.com/search.php?search_type=title&value=" + encodeURIComponent(query)
@@ -306,6 +330,8 @@ if (typeof module !== "undefined") {
     formatRating: formatRating,
     versionLabel: versionLabel,
     metaLine: metaLine,
+    isAllowedUrl: isAllowedUrl,
+    externalUrl: externalUrl,
     escapeHtml: escapeHtml,
     renderTab: renderTab,
     plainTab: plainTab,

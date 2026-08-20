@@ -105,11 +105,12 @@ test("nothing is picked when no result is the song that is playing", () => {
 })
 
 test("only renderable versions reach the version dropdown, best first", () => {
+  const ug = "https://tabs.ultimate-guitar.com/tab/a/"
   const versions = [
-    { type: "Official", version: 1, rating: 5, votes: 10000, url: "https://u/official" },
-    { type: "Chords", version: 2, rating: 4.8, votes: 4000, url: "https://u/chords" },
-    { type: "Tabs", version: 3, rating: 4.1, votes: 100, url: "https://u/tabs" },
-    { type: "Tabs", version: 4, rating: 4.9, votes: 8000, url: "https://u/tabs-good" },
+    { type: "Official", version: 1, rating: 5, votes: 10000, url: ug + "official-1" },
+    { type: "Chords", version: 2, rating: 4.8, votes: 4000, url: ug + "chords-2" },
+    { type: "Tabs", version: 3, rating: 4.1, votes: 100, url: ug + "tabs-3" },
+    { type: "Tabs", version: 4, rating: 4.9, votes: 8000, url: ug + "tabs-4" },
     { type: "Chords", version: 5, rating: 5, votes: 1, url: "" }
   ]
   const ranked = Model.renderableVersions(versions, "tabs")
@@ -179,6 +180,38 @@ test("vote counts and metadata read the way they do on the site", () => {
     Model.metaLine({ type: "Tabs", version: 2, capo: 2, tuningName: "Drop D" }),
     "Tabs · Ver 2 · Capo 2 · Drop D tuning")
   assert.equal(Model.metaLine(null), "")
+})
+
+test("only Ultimate Guitar's own URLs are handed to the browser", () => {
+  const ok = "https://tabs.ultimate-guitar.com/tab/tool/sober-tabs-1"
+  assert.equal(Model.externalUrl(ok), ok)
+  assert.ok(Model.isAllowedUrl("https://ultimate-guitar.com/x"))
+  assert.ok(Model.isAllowedUrl("https://www.ultimate-guitar.com/search.php?value=x"))
+
+  // The panel labels these controls as Ultimate Guitar links, so anything else
+  // must come back empty rather than being opened under that label.
+  for (const bad of ["http://tabs.ultimate-guitar.com/x",
+                     "https://evil.example/x",
+                     "https://notultimate-guitar.com/x",
+                     "https://ultimate-guitar.com.evil.example/x",
+                     "https://evil.example/?next=https://ultimate-guitar.com/x",
+                     "https://evil.example@ultimate-guitar.com.attacker/x",
+                     "file:///etc/passwd",
+                     "javascript:alert(1)",
+                     "",
+                     null]) {
+    assert.equal(Model.externalUrl(bad), "", String(bad))
+    assert.equal(Model.isAllowedUrl(bad), false, String(bad))
+  }
+})
+
+test("a version pointing off-site never reaches the dropdown", () => {
+  const versions = [
+    { type: "Tabs", version: 1, rating: 4.5, votes: 100, url: "https://tabs.ultimate-guitar.com/tab/a-1" },
+    { type: "Tabs", version: 2, rating: 5, votes: 900, url: "https://evil.example/tab/a-2" },
+  ]
+  const ranked = Model.renderableVersions(versions, "guitar")
+  assert.deepEqual(ranked.map(v => v.version), [1])
 })
 
 test("the fallback search link points at the cleaned query", () => {

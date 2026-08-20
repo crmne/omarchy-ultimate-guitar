@@ -77,8 +77,13 @@ Item {
   property string errorText: ""
 
   readonly property bool busy: lookupState === "searching" || lookupState === "loading"
-  readonly property string tabUrl: tab ? String(tab.url || "") : ""
-  readonly property string officialUrl: tab && tab.official ? String(tab.official.url || "") : ""
+  // Both arrive from Ultimate Guitar's page state and end up behind controls
+  // labelled as Ultimate Guitar links, so they are validated before anything
+  // can offer them. A URL naming anywhere else comes back empty, which hides
+  // the control rather than opening a remote-chosen destination under a
+  // trusted label.
+  readonly property string tabUrl: Model.externalUrl(tab ? tab.url : "")
+  readonly property string officialUrl: Model.externalUrl(tab && tab.official ? tab.official.url : "")
   readonly property bool hasOfficial: officialUrl !== ""
   readonly property string searchUrl: hasMedia ? Model.searchPageUrl(artist, title) : ""
 
@@ -153,6 +158,7 @@ Item {
   }
 
   function loadTab(url) {
+    url = Model.externalUrl(url)
     if (!url) return
     tabSerial = serial
     lookupState = "loading"
@@ -232,9 +238,12 @@ Item {
 
   // --- opening pages -------------------------------------------------------
 
+  // Checked again here so no future caller can reach the browser with a URL
+  // that has not been through the guard.
   function openUrl(url) {
-    if (!url) return false
-    Quickshell.execDetached(["omarchy-launch-browser", String(url)])
+    var safe = Model.externalUrl(url)
+    if (!safe) return false
+    Quickshell.execDetached(["omarchy-launch-browser", safe])
     return true
   }
 

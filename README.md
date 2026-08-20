@@ -123,9 +123,11 @@ node --test tests/model.test.js
 python3 -m unittest discover -s tests
 ```
 
-Tab URLs and redirects come from remote page state, so the helper treats them as
-input rather than as addresses: only `https` on `ultimate-guitar.com` and its
-subdomains is fetched, and every redirect hop is re-checked.
+Tab URLs and redirects come from remote page state, so they are treated as input
+rather than as addresses. Only `https` on `ultimate-guitar.com` and its
+subdomains is fetched, every redirect hop is re-checked, and the same guard runs
+before any URL is handed to the browser, so a control labelled as an Ultimate
+Guitar link cannot open somewhere else.
 
 Responses are cached under `~/.cache/omarchy/ultimate-guitar` -- searches for
 six hours, tabs for a week. Pass `--no-cache` to bypass it.
