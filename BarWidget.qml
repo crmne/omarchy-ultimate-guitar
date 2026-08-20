@@ -61,14 +61,16 @@ BarWidget {
     dimmed: !root.ready
     tooltipText: {
       if (!root.hasMedia) return "Ultimate Guitar"
-      var song = root.service ? root.service.nowPlaying : ""
+      // The tooltip is drawn by the shell, whose Text uses the markup-sniffing
+      // default, so nothing remote reaches it unsanitised.
+      var song = Model.safeDisplayText(root.service ? root.service.nowPlaying : "")
       switch (root.lookupState) {
       case "searching": return "Looking for a tab\n" + song
       case "loading": return "Loading the tab\n" + song
       case "ready": return song + (root.service && root.service.tab
         ? "\n" + Model.typeLabel(root.service.tab.type) : "")
       case "empty": return "No tab found\n" + song
-      case "error": return root.service ? root.service.errorText : "Ultimate Guitar"
+      case "error": return Model.safeDisplayText(root.service ? root.service.errorText : "Ultimate Guitar")
       }
       return song
     }

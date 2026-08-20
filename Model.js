@@ -105,7 +105,7 @@ function typeLabel(type) {
   case "Power": return "Power chords"
   case "Official": return "Official tab"
   }
-  return String(type || "")
+  return safeDisplayText(type)
 }
 
 function typeWeight(type, instrument) {
@@ -174,6 +174,15 @@ function renderableVersions(versions, prefer) {
   })
 }
 
+// Text handed to shell components this plugin does not own, such as the bar
+// tooltip and dropdown labels. Those render with QML's default, which sniffs a
+// string for markup, so remote text reaching them could still load a resource
+// even though every Text in this plugin's own panel is pinned to PlainText.
+// Angle brackets are what makes Qt treat a string as rich text, so they go.
+function safeDisplayText(value) {
+  return String(value === null || value === undefined ? "" : value).replace(/[<>]/g, "")
+}
+
 function formatVotes(votes) {
   var count = Math.max(0, Number(votes) || 0)
   if (count >= 10000) return (count / 1000).toFixed(1).replace(/\.0$/, "") + "k"
@@ -190,7 +199,7 @@ function versionLabel(version) {
   if (!version) return ""
   var parts = []
   if (Number(version.version)) parts.push("Ver " + version.version)
-  if (version.type) parts.push(version.type)
+  if (version.type) parts.push(safeDisplayText(version.type))
   var rating = formatRating(version.rating, version.votes)
   if (rating) parts.push(rating)
   return parts.join(" · ")
@@ -330,6 +339,7 @@ if (typeof module !== "undefined") {
     formatRating: formatRating,
     versionLabel: versionLabel,
     metaLine: metaLine,
+    safeDisplayText: safeDisplayText,
     isAllowedUrl: isAllowedUrl,
     externalUrl: externalUrl,
     escapeHtml: escapeHtml,

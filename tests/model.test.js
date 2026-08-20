@@ -236,3 +236,30 @@ test("accents and punctuation do not stop a title from matching", () => {
   assert.ok(!Model.looseMatch("Creep", "Karma Police"))
   assert.ok(!Model.looseMatch("", "Creep"))
 })
+
+test("text handed to shell-drawn components cannot look like markup", () => {
+  // The bar tooltip and the dropdown labels are rendered by the shell, whose
+  // Text elements use QML's markup-sniffing default. Angle brackets are what
+  // makes Qt switch a string to rich text, so they must not survive.
+  assert.equal(Model.safeDisplayText('<img src="https://evil.example/x">'),
+    'img src="https://evil.example/x"')
+  assert.equal(Model.safeDisplayText("<b>bold</b>"), "bbold/b")
+  assert.ok(!Model.safeDisplayText("a <tag> b").includes("<"))
+  assert.ok(!Model.safeDisplayText("a <tag> b").includes(">"))
+
+  // Ordinary text, including newlines the tooltip relies on, is left alone.
+  assert.equal(Model.safeDisplayText("Artist \u2014 Song\nSecond line"),
+    "Artist \u2014 Song\nSecond line")
+  assert.equal(Model.safeDisplayText("Me & You"), "Me & You")
+  assert.equal(Model.safeDisplayText(""), "")
+  assert.equal(Model.safeDisplayText(null), "")
+  assert.equal(Model.safeDisplayText(undefined), "")
+})
+
+test("a crafted tab type cannot smuggle markup into a dropdown label", () => {
+  const version = { type: '<img src=x>', version: 3, rating: 4.5, votes: 10 }
+  const label = Model.versionLabel(version)
+  assert.ok(!label.includes("<"), label)
+  assert.ok(!label.includes(">"), label)
+  assert.ok(!Model.typeLabel("<img src=x>").includes("<"))
+})
