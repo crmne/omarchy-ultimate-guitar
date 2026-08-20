@@ -10,6 +10,18 @@ aligned, with auto-scroll for when both your hands are on the guitar.
 
 `guitar icon` · `song + artist` · `version switcher` · `auto-scroll` · `text size`
 
+## Why
+
+I play guitar in the gaps, usually while a coding agent is off doing something.
+The tab for whatever is already playing should be right there in the bar, not
+three clicks and a browser tab away, because that gap is exactly where the
+looking-it-up cost stops you from picking the guitar up at all.
+
+It earns its keep when friends come over too. Somebody puts something on, and
+the tab is up before anyone asks for it. That is why the version switcher and
+the text size sit in the panel: the person reading is not always the person at
+the keyboard.
+
 ## Install
 
 ```bash
