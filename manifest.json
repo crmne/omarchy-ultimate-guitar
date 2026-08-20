@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "crmne.ultimate-guitar",
   "name": "Ultimate Guitar Tabs",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "Carmine Paolino",
   "license": "MIT",
   "description": "Shows the Ultimate Guitar tab for whatever is playing. Reads the track from MPRIS, picks the best-rated tab for it, and renders it in the bar with auto-scroll, a version switcher, and text sizing.",
@@ -17,27 +17,30 @@
   },
   "barWidget": {
     "displayName": "Ultimate Guitar tabs",
-    "description": "The tab for the song that is playing, with auto-scroll and a version switcher.",
+    "description": "The tab for the song that is playing, for guitar, bass, ukulele, or drums.",
     "category": "Media",
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "preferredType": "Tablature",
       "hideWhenIdle": true,
       "panelWidthPercent": 50,
-      "panelHeightPercent": 100
+      "panelHeightPercent": 100,
+      "instrument": "Guitar tab"
     },
     "schema": [
       {
-        "key": "preferredType",
+        "key": "instrument",
         "type": "enum",
-        "label": "Preferred tab type",
-        "description": "Which kind of tab to open first when a song has several. The other kinds stay available in the version switcher.",
+        "label": "Instrument",
+        "description": "Which instrument's tab to look for. The reader has its own picker that overrides this once you use it; songs nobody tabbed for that instrument fall back to guitar.",
         "options": [
-          "Tablature",
-          "Chord sheets"
+          "Guitar tab",
+          "Guitar chords",
+          "Bass",
+          "Ukulele",
+          "Drums"
         ],
-        "defaultValue": "Tablature"
+        "defaultValue": "Guitar tab"
       },
       {
         "key": "panelWidthPercent",

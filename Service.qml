@@ -10,8 +10,9 @@ import "Model.js" as Model
 Item {
   id: root
 
-  // Pushed in by the bar widget, which owns the user-facing settings.
-  property string preferredType: "tabs"
+  // Which instrument the reader is pointed at. Owned by the panel, which
+  // persists it; the bar widget seeds it from settings at startup.
+  property string instrument: "guitar"
 
   // Raised by IPC so a keybind can drive the panel the widget owns.
   signal toggleRequested()
@@ -102,9 +103,9 @@ Item {
     debounce.restart()
   }
 
-  // Changing the preferred type in bar settings re-picks for the current song
-  // rather than waiting for the next one.
-  onPreferredTypeChanged: if (hasMedia) startLookup()
+  // Switching instrument re-picks for the song already playing rather than
+  // waiting for the next one.
+  onInstrumentChanged: if (hasMedia) startLookup()
 
   // Skipping through a playlist should cost one lookup, not one per track.
   Timer {
@@ -185,7 +186,7 @@ Item {
       fail(payload.error)
       return
     }
-    var best = Model.pickBest(payload.results, artist, title, preferredType)
+    var best = Model.pickBest(payload.results, artist, title, instrument)
     if (!best) {
       // The tidied query found nothing; the verbatim one may still land.
       if (pendingQueries.length) nextSearch()
@@ -208,7 +209,7 @@ Item {
       return
     }
     tab = payload.tab
-    versions = Model.renderableVersions(payload.tab ? payload.tab.versions : [], preferredType)
+    versions = Model.renderableVersions(payload.tab ? payload.tab.versions : [], instrument)
     lookupState = tab && tab.content ? "ready" : "empty"
   }
 
@@ -252,6 +253,7 @@ Item {
       url: tabUrl,
       official: officialUrl,
       type: tab ? String(tab.type || "") : "",
+      instrument: instrument,
       versions: versions.length,
       error: errorText
     }

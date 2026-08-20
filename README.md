@@ -8,7 +8,7 @@ aligned, with auto-scroll for when both your hands are on the guitar.
 
 ![Ultimate Guitar Tabs in the Omarchy bar](preview.png)
 
-`guitar icon` · `song + artist` · `version switcher` · `auto-scroll` · `text size`
+`guitar icon` · `song + artist` · `instrument picker` · `version switcher` · `auto-scroll` · `text size`
 
 ## Why
 
@@ -43,14 +43,26 @@ omarchy bar move crmne.ultimate-guitar --section right --before omarchy.tray
 | right click | open the tab on ultimate-guitar.com |
 | middle click | look the song up again, ignoring the cache |
 
-Inside the reader: pick another version from the dropdown, start auto-scroll and
-set its speed, or step the text size up and down. Scrolling by hand stops
-auto-scroll. Text size and scroll speed are remembered in
+Inside the reader: pick the instrument, pick another version, start auto-scroll
+and set its speed, or step the text size up and down. Scrolling by hand stops
+auto-scroll. The instrument, text size, scroll speed, and whether the reader was
+expanded are remembered in
 `~/.local/state/omarchy/settings/ultimate-guitar.json`.
 
 The reader opens compact; the button in its header gives the tab more room.
-Bar settings expose the preferred tab type (tablature or chord sheets), the
-expanded size, and whether the widget hides when nothing is playing.
+Bar settings expose the starting instrument, the expanded size, and whether the
+widget hides when nothing is playing.
+
+## Instruments
+
+The picker covers everything Ultimate Guitar serves as text: guitar tab, guitar
+chords, bass, ukulele, and drums. Pick one and it sticks, so the next song comes
+up on the same instrument.
+
+A search returns every type at once, so switching instrument costs no extra
+request -- it only changes which result is picked. Plenty of songs have never
+been tabbed for bass or drums; those fall back to guitar rather than showing an
+empty panel, and the header names the type you actually got.
 
 ## Official tabs
 

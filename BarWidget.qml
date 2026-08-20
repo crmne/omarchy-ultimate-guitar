@@ -16,7 +16,7 @@ BarWidget {
   readonly property bool ready: lookupState === "ready"
   readonly property bool busy: service ? service.busy : false
 
-  readonly property string preferredType: String(setting("preferredType", "tabs"))
+  readonly property string defaultInstrument: Model.normalizeInstrument(setting("instrument", "guitar"))
   readonly property bool hideWhenIdle: setting("hideWhenIdle", true) === true
   // Share of the screen the reader may take. Tabs are long and column-aligned,
   // so they want height above all; half the width fits most of them without
@@ -29,15 +29,14 @@ BarWidget {
   function close() { popupOpen = false }
   function toggle() { popupOpen = !popupOpen }
 
-  // The widget owns the settings; the service owns the lookups. Push one into
-  // the other whenever either side appears or changes.
+  // The panel owns the live choice and persists it; bar settings only supply
+  // the starting point.
   function syncService() {
     if (!service) return
-    service.preferredType = preferredType
+    service.instrument = reader.instrument
   }
 
   onServiceChanged: syncService()
-  onPreferredTypeChanged: syncService()
   Component.onCompleted: syncService()
 
   visible: hasMedia || !hideWhenIdle
@@ -109,6 +108,8 @@ BarWidget {
       bar: root.bar
       service: root.service
       active: root.popupOpen
+      defaultInstrument: root.defaultInstrument
+      onInstrumentChanged: root.syncService()
       // availableCardHeight already excludes the bar and the popup's margins;
       // the inset comes off so the card itself lands on the wanted share.
       maxPanelHeight: popup.availableCardHeight > 0

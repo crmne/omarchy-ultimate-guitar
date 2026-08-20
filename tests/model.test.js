@@ -28,14 +28,40 @@ test("only tab types with a text body are renderable, ranked by the configured p
   assert.ok(Model.typeWeight("Bass Tabs", "tabs") > 0)
 })
 
-test("the settings label drives the type preference", () => {
-  // The bar settings UI stores the label the user picked, not a token.
-  assert.ok(Model.prefersChords("Chord sheets"))
-  assert.ok(Model.prefersChords("chords"))
-  assert.ok(!Model.prefersChords("Tablature"))
-  assert.ok(!Model.prefersChords(""))
-  assert.equal(Model.typeWeight("Chords", "Chord sheets"), Model.typeWeight("Chords", "chords"))
-  assert.ok(Model.typeWeight("Chords", "Chord sheets") > Model.typeWeight("Tabs", "Chord sheets"))
+test("an instrument can be named by id, by picker label, or by the older wording", () => {
+  assert.equal(Model.normalizeInstrument("bass"), "bass")
+  assert.equal(Model.normalizeInstrument("Bass"), "bass")
+  assert.equal(Model.normalizeInstrument("Guitar chords"), "chords")
+  assert.equal(Model.normalizeInstrument("Ukulele"), "ukulele")
+  assert.equal(Model.normalizeInstrument("Drums"), "drums")
+  // Preferences stored before the picker existed.
+  assert.equal(Model.normalizeInstrument("Chord sheets"), "chords")
+  assert.equal(Model.normalizeInstrument("Tablature"), "guitar")
+  // Anything unrecognised falls back to guitar rather than breaking the lookup.
+  assert.equal(Model.normalizeInstrument(""), "guitar")
+  assert.equal(Model.normalizeInstrument(undefined), "guitar")
+  assert.equal(Model.instrumentLabel("bass"), "Bass")
+})
+
+test("the chosen instrument outranks every other type", () => {
+  assert.ok(Model.typeWeight("Bass Tabs", "bass") > Model.typeWeight("Tabs", "bass"))
+  assert.ok(Model.typeWeight("Ukulele Chords", "ukulele") > Model.typeWeight("Chords", "ukulele"))
+  assert.ok(Model.typeWeight("Drum Tabs", "drums") > Model.typeWeight("Tabs", "drums"))
+  assert.ok(Model.typeWeight("Chords", "chords") > Model.typeWeight("Tabs", "chords"))
+  // Within an instrument, the first listed type wins.
+  assert.ok(Model.typeWeight("Tabs", "guitar") > Model.typeWeight("Power", "guitar"))
+
+  const bass = { song: "Creep", artist: "Radiohead", type: "Bass Tabs", rating: 4.0, votes: 40 }
+  const guitar = { song: "Creep", artist: "Radiohead", type: "Tabs", rating: 5, votes: 90000 }
+  assert.equal(Model.pickBest([guitar, bass], "Radiohead", "Creep", "bass"), bass,
+    "a modest bass tab still beats a great guitar one when bass was asked for")
+  assert.equal(Model.pickBest([guitar, bass], "Radiohead", "Creep", "guitar"), guitar)
+})
+
+test("a song nobody tabbed for that instrument falls back instead of showing nothing", () => {
+  const guitar = { song: "Creep", artist: "Radiohead", type: "Tabs", rating: 4.7, votes: 5000 }
+  assert.equal(Model.pickBest([guitar], "Radiohead", "Creep", "bass"), guitar)
+  assert.equal(Model.pickBest([guitar], "Radiohead", "Creep", "drums"), guitar)
 })
 
 test("a well-voted tab beats a thinly-voted perfect score", () => {

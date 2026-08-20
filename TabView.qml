@@ -43,6 +43,12 @@ Item {
   property bool expanded: false
   property bool preferencesLoaded: false
 
+  // Seeded from bar settings. Binding, not assignment, so the setting keeps
+  // applying until someone picks an instrument here -- after that the panel's
+  // own choice is the one that persists.
+  property string defaultInstrument: "guitar"
+  property string instrument: defaultInstrument
+
   readonly property int minFontSize: 9
   readonly property int maxFontSize: 26
 
@@ -86,6 +92,7 @@ Item {
       if (stored.fontSize) fontSize = Math.max(minFontSize, Math.min(maxFontSize, Number(stored.fontSize)))
       if (stored.scrollSpeed) scrollSpeed = Math.max(0.2, Math.min(5, Number(stored.scrollSpeed)))
       if (stored.expanded !== undefined) expanded = stored.expanded === true
+      if (stored.instrument) instrument = Model.normalizeInstrument(stored.instrument)
     } catch (error) {
       // A corrupt state file just means defaults.
     }
@@ -97,8 +104,16 @@ Item {
     preferencesFile.setText(JSON.stringify({
       fontSize: fontSize,
       scrollSpeed: scrollSpeed,
-      expanded: expanded
+      expanded: expanded,
+      instrument: instrument
     }, null, 2) + "\n")
+  }
+
+  function setInstrument(value) {
+    var next = Model.normalizeInstrument(value)
+    if (next === instrument) return
+    instrument = next
+    savePreferences()
   }
 
   function setExpanded(value) {
@@ -265,10 +280,28 @@ Item {
         spacing: Style.space(6)
 
         // Row has no alignment of its own, so every child centers itself
-        // against the tallest one -- the dropdown.
+        // against the tallest one -- the dropdowns.
+        Dropdown {
+          id: instrumentPicker
+          width: Math.max(Style.space(112), parent.width * 0.23)
+          anchors.verticalCenter: parent.verticalCenter
+          label: "Instrument"
+          showLabel: false
+          foreground: root.foreground
+          value: root.instrument
+          options: {
+            var list = []
+            for (var i = 0; i < Model.INSTRUMENTS.length; i++) {
+              list.push({ label: Model.INSTRUMENTS[i].label, value: Model.INSTRUMENTS[i].id })
+            }
+            return list
+          }
+          onChanged: function (value) { root.setInstrument(value) }
+        }
+
         Dropdown {
           id: versionPicker
-          width: Math.max(Style.space(150), parent.width * 0.34)
+          width: Math.max(Style.space(130), parent.width * 0.28)
           anchors.verticalCenter: parent.verticalCenter
           label: "Version"
           showLabel: false

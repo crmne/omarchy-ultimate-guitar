@@ -53,21 +53,55 @@ function searchQueries(artist, title) {
   return queries
 }
 
-// The settings UI stores the label the user picked ("Chord sheets"), so the
-// preference is matched loosely rather than against a fixed token.
-function prefersChords(prefer) {
-  return String(prefer || "").toLowerCase().indexOf("chord") !== -1
+// What the reader can be pointed at, in the order the picker lists them. Each
+// maps to the Ultimate Guitar types that count as that instrument, best first.
+// These are exactly the types that carry a text body -- there is nothing to
+// point at for piano or vocals, because those are Pro tabs.
+var INSTRUMENTS = [
+  { id: "guitar", label: "Guitar tab", types: ["Tabs", "Power"] },
+  { id: "chords", label: "Guitar chords", types: ["Chords"] },
+  { id: "bass", label: "Bass", types: ["Bass Tabs"] },
+  { id: "ukulele", label: "Ukulele", types: ["Ukulele Chords"] },
+  { id: "drums", label: "Drums", types: ["Drum Tabs"] }
+]
+
+// Accepts an id, the label shown in the picker, or the older tablature/chords
+// wording, so a stored preference keeps working.
+function normalizeInstrument(value) {
+  var wanted = String(value || "").toLowerCase().trim()
+  for (var i = 0; i < INSTRUMENTS.length; i++) {
+    if (wanted === INSTRUMENTS[i].id || wanted === INSTRUMENTS[i].label.toLowerCase()) {
+      return INSTRUMENTS[i].id
+    }
+  }
+  if (wanted.indexOf("bass") !== -1) return "bass"
+  if (wanted.indexOf("ukulele") !== -1) return "ukulele"
+  if (wanted.indexOf("drum") !== -1) return "drums"
+  if (wanted.indexOf("chord") !== -1) return "chords"
+  return "guitar"
 }
 
+function instrumentFor(value) {
+  var id = normalizeInstrument(value)
+  for (var i = 0; i < INSTRUMENTS.length; i++) {
+    if (INSTRUMENTS[i].id === id) return INSTRUMENTS[i]
+  }
+  return INSTRUMENTS[0]
+}
 
-function typeWeight(type, prefer) {
+function instrumentLabel(value) {
+  return instrumentFor(value).label
+}
+
+function typeWeight(type, instrument) {
   var candidate = String(type || "")
   if (RENDERABLE_TYPES.indexOf(candidate) === -1) return 0
-  var preferred = prefersChords(prefer) ? "Chords" : "Tabs"
-  var secondary = preferred === "Tabs" ? "Chords" : "Tabs"
-  if (candidate === preferred) return 4
-  if (candidate === secondary) return 3
-  if (candidate === "Power") return 2
+  var chosen = instrumentFor(instrument).types.indexOf(candidate)
+  if (chosen !== -1) return 100 - chosen * 10
+  // Not the instrument that was asked for, but still readable. Plenty of songs
+  // have never been tabbed for bass or ukulele, and a guitar tab beats an empty
+  // panel; the type is named in the header, so the fallback is visible.
+  if (candidate === "Tabs" || candidate === "Chords") return 5
   return 1
 }
 
@@ -240,7 +274,10 @@ if (typeof module !== "undefined") {
     cleanTitle: cleanTitle,
     cleanArtist: cleanArtist,
     searchQueries: searchQueries,
-    prefersChords: prefersChords,
+    INSTRUMENTS: INSTRUMENTS,
+    normalizeInstrument: normalizeInstrument,
+    instrumentFor: instrumentFor,
+    instrumentLabel: instrumentLabel,
     typeWeight: typeWeight,
     looseMatch: looseMatch,
     confidence: confidence,
