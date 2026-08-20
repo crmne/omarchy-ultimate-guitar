@@ -34,6 +34,39 @@ CACHE_DIR = os.path.join(
     "omarchy", "ultimate-guitar")
 
 
+class BlockedUrl(Exception):
+    """A URL we will not fetch, whatever supplied it."""
+
+
+# Tab URLs and the redirects they lead to arrive from remote page state, so they
+# are treated as untrusted input rather than as addresses. Without this the
+# helper would happily open file:// paths or reach loopback, link-local and
+# other private services on the machine running it.
+ALLOWED_HOSTS = ("ultimate-guitar.com",)
+
+
+def check_url(url):
+    parts = urllib.parse.urlsplit(str(url or ""))
+    if parts.scheme != "https":
+        raise BlockedUrl("refusing to fetch a %s URL; only https is followed"
+                         % (parts.scheme or "scheme-less"))
+    host = (parts.hostname or "").lower()
+    if not any(host == allowed or host.endswith("." + allowed) for allowed in ALLOWED_HOSTS):
+        raise BlockedUrl("refusing to fetch from %s" % (host or "an unnamed host"))
+    return url
+
+
+class GuardedRedirects(urllib.request.HTTPRedirectHandler):
+    """Re-checks every hop: an allowed host may still redirect anywhere."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        check_url(newurl)
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+OPENER = urllib.request.build_opener(GuardedRedirects)
+
+
 class TabMissing(Exception):
     """The page we asked for is gone -- distinct from a bug or a network fault."""
 
@@ -49,9 +82,9 @@ def fetch_store(url, timeout=20, missing_ok=False):
     """
     headers = {"User-Agent": UA, "Accept-Encoding": "gzip",
                "Accept-Language": "en-US,en;q=0.9"}
-    request = urllib.request.Request(url, headers=headers)
+    request = urllib.request.Request(check_url(url), headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with OPENER.open(request, timeout=timeout) as response:
             raw = response.read()
             if response.headers.get("Content-Encoding") == "gzip":
                 raw = gzip.decompress(raw)
@@ -186,6 +219,8 @@ def main():
     handlers = {"search": cmd_search, "tab": cmd_tab}
     try:
         payload = handlers[args.command](args)
+    except BlockedUrl as exc:
+        payload = {"ok": False, "code": "blocked", "error": str(exc)}
     except TabMissing as exc:
         payload = {"ok": False, "code": "missing", "error": str(exc)}
     except urllib.error.HTTPError as exc:

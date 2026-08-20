@@ -30,6 +30,13 @@ Item {
   readonly property var tab: service ? service.tab : null
   readonly property string lookupState: service ? service.lookupState : "idle"
   readonly property bool ready: lookupState === "ready" && !!tab
+  // Only art the player points at on disk or over https. Track metadata can
+  // name any URL, and loading one is a request we never asked for.
+  readonly property string coverSource: {
+    var url = root.service ? String(root.service.artUrl || "") : ""
+    return /^(file:|https:)/i.test(url) ? url : ""
+  }
+
   readonly property color foreground: bar ? bar.barForeground : Color.popups.text
   readonly property color chordColor: Color.accent
   readonly property color subtle: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.55)
@@ -257,7 +264,7 @@ Item {
         Image {
           id: cover
           anchors.fill: parent
-          source: root.service ? root.service.artUrl : ""
+          source: root.coverSource
           fillMode: Image.PreserveAspectCrop
           asynchronous: true
           sourceSize.width: 128
@@ -275,6 +282,7 @@ Item {
         spacing: Style.space(2)
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: root.tab && root.tab.song ? root.tab.song
             : (root.service && root.service.title ? root.service.title : "Nothing playing")
@@ -286,6 +294,7 @@ Item {
         }
 
         Text {
+          textFormat: Text.PlainText
           width: parent.width
           text: root.tab && root.tab.artist ? root.tab.artist
             : (root.service ? root.service.artist : "")
@@ -335,6 +344,7 @@ Item {
     }
 
     Text {
+      textFormat: Text.PlainText
       width: parent.width
       text: Model.metaLine(root.tab)
       color: root.subtle
@@ -581,6 +591,7 @@ Item {
       spacing: Style.space(8)
 
       Text {
+        textFormat: Text.PlainText
         width: parent.width
         horizontalAlignment: Text.AlignHCenter
         color: root.subtle
@@ -616,6 +627,7 @@ Item {
   // --- footer, pinned to the bottom ----------------------------------------
 
   Text {
+    textFormat: Text.PlainText
     id: footer
     anchors.bottom: parent.bottom
     anchors.left: parent.left

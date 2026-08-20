@@ -115,11 +115,17 @@ bin/ug-tabs search "artist song"
 bin/ug-tabs tab https://tabs.ultimate-guitar.com/tab/...
 ```
 
-Matching, ranking, and rendering live in `Model.js` as pure functions:
+Matching, ranking, and rendering live in `Model.js` as pure functions, and the
+fetch helper's URL guard has its own tests:
 
 ```bash
 node --test tests/model.test.js
+python3 -m unittest discover -s tests
 ```
+
+Tab URLs and redirects come from remote page state, so the helper treats them as
+input rather than as addresses: only `https` on `ultimate-guitar.com` and its
+subdomains is fetched, and every redirect hop is re-checked.
 
 Responses are cached under `~/.cache/omarchy/ultimate-guitar` -- searches for
 six hours, tabs for a week. Pass `--no-cache` to bypass it.
