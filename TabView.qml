@@ -283,7 +283,9 @@ Item {
         // against the tallest one -- the dropdowns.
         Dropdown {
           id: instrumentPicker
-          width: Math.max(Style.space(112), parent.width * 0.23)
+          // Fixed: it only ever holds one of five short labels, so growing it
+          // with the panel would just steal room from the version label.
+          width: Style.space(124)
           anchors.verticalCenter: parent.verticalCenter
           label: "Instrument"
           showLabel: false
@@ -301,7 +303,12 @@ Item {
 
         Dropdown {
           id: versionPicker
-          width: Math.max(Style.space(130), parent.width * 0.28)
+          // Takes everything the fixed-width controls leave, so the rating and
+          // vote count survive instead of being elided away.
+          width: Math.max(Style.space(130),
+                          controls.width - instrumentPicker.width - playButton.width
+                            - speedSlider.width - smallerButton.width - biggerButton.width
+                            - controls.spacing * 5)
           anchors.verticalCenter: parent.verticalCenter
           label: "Version"
           showLabel: false
@@ -325,6 +332,7 @@ Item {
         }
 
         PanelActionButton {
+          id: playButton
           anchors.verticalCenter: parent.verticalCenter
           iconText: root.autoScroll ? "\u{F03E4}" : "\u{F040A}"
           tooltipText: root.autoScroll ? "Pause auto-scroll" : "Auto-scroll while you play"
@@ -333,7 +341,10 @@ Item {
         }
 
         PanelSlider {
-          width: Math.max(Style.space(70), parent.width * 0.18)
+          id: speedSlider
+          // Capped: past a point a longer slider buys no precision, and the
+          // width is better spent on the version label.
+          width: Math.min(Style.space(130), Math.max(Style.space(70), parent.width * 0.18))
           anchors.verticalCenter: parent.verticalCenter
           bar: root.bar
           minimum: 0.2
@@ -348,6 +359,7 @@ Item {
         }
 
         PanelActionButton {
+          id: smallerButton
           anchors.verticalCenter: parent.verticalCenter
           iconText: "\u{F0374}"
           tooltipText: "Smaller text"
@@ -357,6 +369,7 @@ Item {
         }
 
         PanelActionButton {
+          id: biggerButton
           anchors.verticalCenter: parent.verticalCenter
           iconText: "\u{F0415}"
           tooltipText: "Bigger text"
