@@ -2,7 +2,7 @@
 
 Whatever is playing, its tab is one click away in the bar.
 
-The widget reads the current track from MPRIS, finds the best-rated tab for it
+The widget picks up whatever you are playing, finds the best-rated tab for it
 on Ultimate Guitar, and renders it right in the shell: chords colored, columns
 aligned, with auto-scroll for when both your hands are on the guitar.
 
@@ -32,7 +32,8 @@ omarchy bar move crmne.ultimate-guitar --section right --before omarchy.tray
 ## Requirements
 
 - Omarchy Quattro with its Quickshell-based shell.
-- Any media player exposing the standard MPRIS interface.
+- Any media player that tells the desktop what it is playing (the standard
+  MPRIS interface, which nearly all of them speak).
 - `/usr/bin/python3` for the fetch helper. No extra packages, no account.
 
 ## Using it

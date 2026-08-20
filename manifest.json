@@ -5,7 +5,7 @@
   "version": "1.1.0",
   "author": "Carmine Paolino",
   "license": "MIT",
-  "description": "Shows the Ultimate Guitar tab for whatever is playing. Reads the track from MPRIS, picks the best-rated tab for it, and renders it in the bar with auto-scroll, a version switcher, and text sizing.",
+  "description": "Shows the Ultimate Guitar tab for whatever you are playing. It picks the track up from your media player, finds the best-rated tab for it, and renders it in the bar with auto-scroll, a version switcher, and text sizing.",
   "kinds": [
     "service",
     "bar-widget"
@@ -17,7 +17,7 @@
   },
   "barWidget": {
     "displayName": "Ultimate Guitar tabs",
-    "description": "The tab for the song that is playing, for guitar, bass, ukulele, or drums.",
+    "description": "The tab for the song you are playing, for guitar, bass, ukulele, or drums.",
     "category": "Media",
     "allowMultiple": false,
     "defaultSection": "right",
