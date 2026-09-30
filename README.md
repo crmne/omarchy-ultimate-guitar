@@ -6,6 +6,10 @@ The widget picks up whatever you are playing, finds the best-rated tab for it
 on Ultimate Guitar, and renders it right in the shell: chords colored, columns
 aligned, with auto-scroll for when both your hands are on the guitar.
 
+https://github.com/user-attachments/assets/5707ef71-4145-4ad7-be4e-b41d56e6759e
+
+Music in the film: "What Child Is This? (Greensleeves)", played by Derek K. Miller, [CC BY 2.5 Canada](https://creativecommons.org/licenses/by/2.5/ca/).
+
 ![Ultimate Guitar Tabs in the Omarchy bar](preview.png)
 
 `guitar icon` · `song + artist` · `instrument picker` · `version switcher` · `auto-scroll` · `text size`
