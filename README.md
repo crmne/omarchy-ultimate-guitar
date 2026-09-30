@@ -127,10 +127,15 @@ Tab URLs and redirects come from remote page state, so they are treated as input
 rather than as addresses. Only `https` on `ultimate-guitar.com` and its
 subdomains is fetched, every redirect hop is re-checked, and the same guard runs
 before any URL is handed to the browser, so a control labelled as an Ultimate
-Guitar link cannot open somewhere else.
+Guitar link cannot open somewhere else. Pages are size-limited before and after
+decompression, search results, versions and tab text are capped, and the shell
+collects at most 2 MiB of the helper's output.
 
 Responses are cached under `~/.cache/omarchy/ultimate-guitar` -- searches for
-six hours, tabs for a week. Pass `--no-cache` to bypass it.
+six hours, tabs for a week. Pass `--no-cache` to bypass it. The cache directory
+is private to you, entries are read without following symlinks or waiting on
+anything that is not a regular file, and they are written to a private
+temporary file and renamed into place.
 
 ## License
 

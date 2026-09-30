@@ -294,3 +294,14 @@ test("the guard never disagrees with a real URL parser", () => {
   // And the specific shape that was reported.
   assert.equal(Model.isAllowedUrl("https://evil.example\\@ultimate-guitar.com/"), false)
 })
+
+test("helper output over the shell's cap is refused, and results are trimmed", () => {
+  const limit = 100
+  const refused = Model.parseHelperOutput("x".repeat(limit + 1), limit)
+  assert.equal(refused.ok, false)
+  assert.equal(Model.parseHelperOutput("", limit), null)
+  assert.equal(Model.parseHelperOutput("not json", limit), null)
+  assert.equal(Model.parseHelperOutput("3", limit), null)
+  const many = JSON.stringify({ ok: true, results: Array.from({ length: 80 }, (_, i) => ({ id: i })) })
+  assert.equal(Model.parseHelperOutput(many, many.length + 1).results.length, 60)
+})

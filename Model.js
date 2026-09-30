@@ -320,6 +320,29 @@ function searchPageUrl(artist, title) {
   return "https://www.ultimate-guitar.com/search.php?search_type=title&value=" + encodeURIComponent(query)
 }
 
+// What the fetch helper printed, as an object, or null when it printed nothing
+// usable. Output past `limit` means the helper did not respect its own cap (the
+// shell cuts it off one byte past it), so it is refused whole rather than
+// parsed; results are trimmed to the most the helper ever sends.
+var MAX_RESULTS = 60
+
+function parseHelperOutput(raw, limit) {
+  var text = String(raw || "")
+  if (limit && text.length > limit)
+    return { ok: false, error: "The tab fetcher returned more than any tab needs." }
+  text = text.trim()
+  if (!text) return null
+  var payload
+  try {
+    payload = JSON.parse(text)
+  } catch (error) {
+    return null
+  }
+  if (!payload || typeof payload !== "object") return null
+  if (Array.isArray(payload.results)) payload.results = payload.results.slice(0, MAX_RESULTS)
+  return payload
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     RENDERABLE_TYPES: RENDERABLE_TYPES,
@@ -350,6 +373,7 @@ if (typeof module !== "undefined") {
     plainTab: plainTab,
     tabLines: tabLines,
     longestLine: longestLine,
-    searchPageUrl: searchPageUrl
+    searchPageUrl: searchPageUrl,
+    parseHelperOutput: parseHelperOutput
   }
 }

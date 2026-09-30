@@ -13,17 +13,21 @@ list, and the link to an official tab when one exists.
 """
 
 import argparse
-import gzip
+import errno
 import hashlib
 import html
 import json
 import os
 import re
+import signal
+import stat
 import sys
+import tempfile
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
+import zlib
 
 UA = ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/126.0.0.0 Safari/537.36")
@@ -32,6 +36,22 @@ STORE_RE = re.compile(r'<div class="js-store" data-content="(.*?)"></div>', re.S
 CACHE_DIR = os.path.join(
     os.environ.get("XDG_CACHE_HOME", os.path.expanduser("~/.cache")),
     "omarchy", "ultimate-guitar")
+
+# Everything that crosses a boundary has a ceiling: what Ultimate Guitar sends,
+# what it inflates to, and what this script prints for the shell to hold in
+# memory. Real pages are about 25 KB compressed and 200 KB inflated; these
+# leave plenty of room above that.
+MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+MAX_DECODED_BYTES = 8 * 1024 * 1024
+MAX_RESULTS = 60
+MAX_VERSIONS = 60
+MAX_CONTENT_CHARS = 512 * 1024
+MAX_FIELD_CHARS = 512
+# Service.qml caps what it collects at the same figure, so keep them in step.
+MAX_OUTPUT_BYTES = 2 * 1024 * 1024
+# The cache lives on local disk, but a read or write that stalls (a slow or
+# hung filesystem) must not hold the shell's lookup forever.
+CACHE_IO_SECONDS = 5
 
 
 class BlockedUrl(Exception):
@@ -75,7 +95,37 @@ class TabMissing(Exception):
     """The page we asked for is gone -- distinct from a bug or a network fault."""
 
 
+class TooLarge(Exception):
+    """A response or result bigger than any tab page could need."""
+
+
 # --- fetching --------------------------------------------------------------
+
+def read_limited(response):
+    """Read a response body, refusing it before it can grow past the limits.
+
+    Both the bytes on the wire and what gzip expands them to are bounded, so a
+    small compressed body cannot inflate into something that will not fit.
+    """
+    length = (response.headers.get("Content-Length") or "").strip()
+    if length.isdigit() and int(length) > MAX_RESPONSE_BYTES:
+        raise TooLarge("Ultimate Guitar sent a page too large to be a tab")
+    raw = response.read(MAX_RESPONSE_BYTES + 1)
+    if len(raw) > MAX_RESPONSE_BYTES:
+        raise TooLarge("Ultimate Guitar sent a page too large to be a tab")
+    encoding = (response.headers.get("Content-Encoding") or "").strip().lower()
+    if encoding == "gzip":
+        inflater = zlib.decompressobj(zlib.MAX_WBITS | 16)
+        try:
+            raw = inflater.decompress(raw, MAX_DECODED_BYTES + 1)
+        except zlib.error as exc:
+            raise ValueError("Ultimate Guitar sent a damaged page: %s" % exc)
+        if len(raw) > MAX_DECODED_BYTES or inflater.unconsumed_tail:
+            raise TooLarge("Ultimate Guitar sent a page too large to be a tab")
+    elif encoding not in ("", "identity"):
+        raise ValueError("Ultimate Guitar sent an unexpected %s page" % encoding)
+    return raw
+
 
 def fetch_store(url, timeout=20, missing_ok=False):
     """GET `url` and return the page-state JSON Ultimate Guitar embeds in it.
@@ -89,9 +139,7 @@ def fetch_store(url, timeout=20, missing_ok=False):
     request = urllib.request.Request(check_url(url), headers=headers)
     try:
         with OPENER.open(request, timeout=timeout) as response:
-            raw = response.read()
-            if response.headers.get("Content-Encoding") == "gzip":
-                raw = gzip.decompress(raw)
+            raw = read_limited(response)
     except urllib.error.HTTPError as exc:
         if missing_ok and exc.code == 404:
             return None
@@ -102,74 +150,187 @@ def fetch_store(url, timeout=20, missing_ok=False):
     return json.loads(html.unescape(match.group(1)))["store"]
 
 
-def cached(key, ttl, produce):
-    path = os.path.join(CACHE_DIR, hashlib.sha1(key.encode()).hexdigest() + ".json")
+class Deadline:
+    """Give up on local cache I/O that takes longer than `seconds`."""
+
+    def __init__(self, seconds):
+        self.seconds = seconds
+
+    def _expired(self, signum, frame):
+        raise TimeoutError("cache I/O took too long")
+
+    def __enter__(self):
+        self.previous = signal.signal(signal.SIGALRM, self._expired)
+        signal.setitimer(signal.ITIMER_REAL, self.seconds)
+        return self
+
+    def __exit__(self, *exc):
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, self.previous)
+        return False
+
+
+def cache_dir():
+    """The cache directory, created private, or None when it is not ours.
+
+    Another local process must not be able to point the cache somewhere else,
+    so a directory that is a symlink, is not a directory, or belongs to
+    someone else is not used at all.
+    """
+    os.makedirs(CACHE_DIR, mode=0o700, exist_ok=True)
+    info = os.lstat(CACHE_DIR)
+    if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid():
+        return None
+    # A directory made before this was private may still be open to others.
+    if stat.S_IMODE(info.st_mode) & 0o077:
+        os.chmod(CACHE_DIR, 0o700)
+    return CACHE_DIR
+
+
+def read_cache(path, ttl):
+    """A fresh cache entry, or None.
+
+    The file is opened once, without following a symlink and without blocking
+    on a FIFO, and everything is decided from that descriptor, so nothing can
+    swap the file between the check and the read. Only a small regular file of
+    ours that is still fresh counts.
+    """
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, "O_CLOEXEC", 0)
     try:
-        if time.time() - os.path.getmtime(path) < ttl:
-            with open(path, encoding="utf-8") as handle:
-                return json.load(handle)
-    except (OSError, ValueError):
+        fd = os.open(path, flags)
+    except OSError as exc:
+        if exc.errno in (errno.ENOENT, errno.ELOOP):
+            return None
+        raise
+    with os.fdopen(fd, "rb") as handle:
+        info = os.fstat(handle.fileno())
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                or info.st_size > MAX_OUTPUT_BYTES
+                or time.time() - info.st_mtime >= ttl):
+            return None
+        data = handle.read(MAX_OUTPUT_BYTES + 1)
+    if len(data) > MAX_OUTPUT_BYTES:
+        return None
+    return json.loads(data.decode("utf-8"))
+
+
+def write_cache(directory, path, payload):
+    """Write an entry through a private temporary file and an atomic rename.
+
+    The temporary file is created exclusively with owner-only permissions, and
+    the rename replaces whatever sits at `path` (a symlink included) rather
+    than writing through it.
+    """
+    fd, temporary = tempfile.mkstemp(dir=directory, prefix=".entry-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(payload, handle)
+        os.replace(temporary, path)
+    except BaseException:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+        raise
+
+
+def cached(key, ttl, produce):
+    name = hashlib.sha1(key.encode()).hexdigest() + ".json"
+    directory = None
+    try:
+        with Deadline(CACHE_IO_SECONDS):
+            directory = cache_dir()
+            if directory:
+                hit = read_cache(os.path.join(directory, name), ttl)
+                if isinstance(hit, dict):
+                    return hit
+    except (OSError, ValueError, TimeoutError):
         pass
     payload = produce()
-    try:
-        os.makedirs(CACHE_DIR, exist_ok=True)
-        with open(path, "w", encoding="utf-8") as handle:
-            json.dump(payload, handle)
-    except OSError:
-        pass
+    if directory:
+        try:
+            with Deadline(CACHE_IO_SECONDS):
+                write_cache(directory, os.path.join(directory, name), payload)
+        except (OSError, TimeoutError):
+            pass
     return payload
 
 
 # --- shaping ---------------------------------------------------------------
 
+def text(value, limit=MAX_FIELD_CHARS):
+    """A string field from the page state, cut down to `limit` characters."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        value = str(value)
+    return value[:limit] if isinstance(value, str) else ""
+
+
+def number(value):
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
+
+
 def shape_result(item):
     return {
-        "id": item.get("id"),
-        "song": item.get("song_name") or "",
-        "artist": item.get("artist_name") or "",
-        "type": item.get("type") or "",
-        "typeLabel": item.get("typeLabel") or item.get("type") or "",
-        "url": item.get("tab_url") or "",
-        "rating": item.get("rating") or 0,
-        "votes": item.get("votes") or 0,
-        "version": item.get("version") or 0,
-        "versionDescription": item.get("version_description") or "",
-        "access": item.get("tab_access_type") or "",
-        "marketing": item.get("marketing_type") or "",
-        "tonality": item.get("tonality_name") or "",
-        "difficulty": item.get("difficulty") or "",
+        "id": item.get("id") if number(item.get("id")) else None,
+        "song": text(item.get("song_name")),
+        "artist": text(item.get("artist_name")),
+        "type": text(item.get("type")),
+        "typeLabel": text(item.get("typeLabel") or item.get("type")),
+        "url": text(item.get("tab_url")),
+        "rating": number(item.get("rating")),
+        "votes": number(item.get("votes")),
+        "version": number(item.get("version")),
+        "versionDescription": text(item.get("version_description")),
+        "access": text(item.get("tab_access_type")),
+        "marketing": text(item.get("marketing_type")),
+        "tonality": text(item.get("tonality_name")),
+        "difficulty": text(item.get("difficulty")),
         "verified": bool(item.get("verified")),
     }
 
 
+def records(value, limit):
+    """The dicts in a page-state list that link to a tab, at most `limit`."""
+    items = value if isinstance(value, list) else []
+    return [item for item in items if isinstance(item, dict) and item.get("tab_url")][:limit]
+
+
+def section(value):
+    return value if isinstance(value, dict) else {}
+
+
+def page_data(store):
+    return section(section(section(store).get("page")).get("data"))
+
+
 def shape_tab(store):
-    data = store.get("page", {}).get("data", {})
-    tab = data.get("tab") or {}
-    view = data.get("tab_view") or {}
-    meta = view.get("meta") or {}
-    tuning = meta.get("tuning") or {}
-    versions = [shape_result(v) for v in (view.get("versions") or []) if v.get("tab_url")]
-    official_url = view.get("official_tab_url") or ""
+    data = page_data(store)
+    tab = section(data.get("tab"))
+    view = section(data.get("tab_view"))
+    meta = section(view.get("meta"))
+    tuning = section(meta.get("tuning"))
+    versions = [shape_result(v) for v in records(view.get("versions"), MAX_VERSIONS)]
+    official_url = text(view.get("official_tab_url"))
     return {
-        "song": tab.get("song_name") or "",
-        "artist": tab.get("artist_name") or "",
-        "type": tab.get("type") or "",
-        "url": tab.get("tab_url") or "",
-        "version": tab.get("version") or 0,
-        "rating": tab.get("rating") or 0,
-        "votes": tab.get("votes") or 0,
-        "difficulty": meta.get("difficulty") or tab.get("difficulty") or "",
-        "key": meta.get("tonality") or tab.get("tonality_name") or "",
-        "capo": meta.get("capo") or 0,
-        "tuningName": tuning.get("name") or "",
-        "tuning": tuning.get("value") or "",
-        "content": (view.get("wiki_tab") or {}).get("content") or "",
+        "song": text(tab.get("song_name")),
+        "artist": text(tab.get("artist_name")),
+        "type": text(tab.get("type")),
+        "url": text(tab.get("tab_url")),
+        "version": number(tab.get("version")),
+        "rating": number(tab.get("rating")),
+        "votes": number(tab.get("votes")),
+        "difficulty": text(meta.get("difficulty") or tab.get("difficulty")),
+        "key": text(meta.get("tonality") or tab.get("tonality_name")),
+        "capo": number(meta.get("capo")),
+        "tuningName": text(tuning.get("name")),
+        "tuning": text(tuning.get("value")),
+        "content": text(section(view.get("wiki_tab")).get("content"), MAX_CONTENT_CHARS),
         "versions": versions,
         "official": {
             "url": official_url,
             "available": bool(view.get("has_official_version") or official_url),
         },
-        "proUrl": data.get("best_pro_tab_url") or "",
+        "proUrl": text(data.get("best_pro_tab_url")),
     }
 
 
@@ -186,9 +347,8 @@ def cmd_search(args):
         store = fetch_store(url, missing_ok=True)
         if store is None:
             return {"results": []}
-        data = store.get("page", {}).get("data", {})
-        return {"results": [shape_result(r) for r in (data.get("results") or [])
-                            if r.get("tab_url")]}
+        return {"results": [shape_result(r)
+                            for r in records(page_data(store).get("results"), MAX_RESULTS)]}
 
     payload = produce() if args.no_cache else cached("search:" + query, args.search_ttl, produce)
     return {"ok": True, "query": query, **payload}
@@ -225,6 +385,8 @@ def main():
         payload = handlers[args.command](args)
     except BlockedUrl as exc:
         payload = {"ok": False, "code": "blocked", "error": str(exc)}
+    except TooLarge as exc:
+        payload = {"ok": False, "code": "too-large", "error": str(exc)}
     except TabMissing as exc:
         payload = {"ok": False, "code": "missing", "error": str(exc)}
     except urllib.error.HTTPError as exc:
@@ -235,9 +397,21 @@ def main():
         payload = {"ok": False, "code": "parse", "error": str(exc)}
     except Exception as exc:
         payload = {"ok": False, "code": "internal", "error": "%s: %s" % (type(exc).__name__, exc)}
-    json.dump(payload, sys.stdout)
-    sys.stdout.write("\n")
+    sys.stdout.write(bounded_output(payload))
     return 0 if payload.get("ok") else 1
+
+
+def bounded_output(payload):
+    """The JSON line to print, never more than MAX_OUTPUT_BYTES.
+
+    The fields are already capped, but escaping can still grow them, so the
+    finished line is measured and an oversized one is replaced by an error.
+    """
+    line = json.dumps(payload) + "\n"
+    if len(line.encode("utf-8")) > MAX_OUTPUT_BYTES:
+        line = json.dumps({"ok": False, "code": "too-large",
+                           "error": "That tab is too large to show"}) + "\n"
+    return line
 
 
 if __name__ == "__main__":
