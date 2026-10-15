@@ -305,3 +305,81 @@ test("helper output over the shell's cap is refused, and results are trimmed", (
   const many = JSON.stringify({ ok: true, results: Array.from({ length: 80 }, (_, i) => ({ id: i })) })
   assert.equal(Model.parseHelperOutput(many, many.length + 1).results.length, 60)
 })
+
+// Any user can read a process's arguments (/proc/<pid>/cmdline), but only its
+// owner its environment, and both the query and a tab URL name the song.
+const { spawnSync } = require("node:child_process")
+const fs = require("node:fs")
+const os = require("node:os")
+const path = require("node:path")
+
+const secretQuery = "Invented Band Secret Song; $(touch /tmp/x) 'quoted'"
+const secretUrl = "https://tabs.ultimate-guitar.com/tab/invented-band/secret-song-tabs-12345"
+
+function invocation(action, value, extra) {
+  return Model.helperInvocation(Object.assign({
+    python: "/usr/bin/python3", helper: "/plugins/ug/bin/ug-tabs", action, value,
+    noCache: false, maxOutputBytes: 2 * 1024 * 1024, timeoutSeconds: 45
+  }, extra || {}))
+}
+
+test("the helper gets the song in its environment, never on its command line", () => {
+  const search = invocation("search", secretQuery, { noCache: true })
+  const tab = invocation("tab", secretUrl)
+  for (const [run, secret] of [[search, secretQuery], [tab, secretUrl]]) {
+    const argv = run.command.join("\n")
+    for (const piece of [secret, "Invented", "Secret Song", "secret-song", "invented-band"])
+      assert.equal(argv.indexOf(piece), -1, `${piece} is on the command line`)
+  }
+  assert.deepEqual(search.command.slice(3),
+    ["ug-tabs", "/usr/bin/python3", "/plugins/ug/bin/ug-tabs", "--no-cache", "search"])
+  assert.deepEqual(tab.command.slice(3), ["ug-tabs", "/usr/bin/python3", "/plugins/ug/bin/ug-tabs", "tab"])
+  assert.deepEqual(search.environment, { UG_TABS_QUERY: secretQuery, UG_TABS_URL: null })
+  assert.deepEqual(tab.environment, { UG_TABS_QUERY: null, UG_TABS_URL: secretUrl })
+  // The shell text is the same whatever is playing: nothing in it comes from
+  // the player or the network.
+  assert.equal(search.command[2], invocation("search", "anything else").command[2])
+  assert.equal(search.command[2], tab.command[2])
+})
+
+function runWith(helperSource, run) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ug-tabs-test-"))
+  try {
+    const helper = path.join(dir, "helper.py")
+    fs.writeFileSync(helper, helperSource)
+    const command = run.command.slice()
+    command[5] = helper
+    const env = Object.assign({}, process.env)
+    for (const key in run.environment) {
+      if (run.environment[key] === null) delete env[key]
+      else env[key] = run.environment[key]
+    }
+    const started = Date.now()
+    const result = spawnSync(command[0], command.slice(1), { env, encoding: "utf8", timeout: 20000 })
+    return { stdout: result.stdout, seconds: (Date.now() - started) / 1000 }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test("the real wrapper delivers the value through the environment", { skip: !fs.existsSync("/usr/bin/timeout") }, () => {
+  const echo = "import json, os, sys\nprint(json.dumps({'ok': True, 'argv': sys.argv[1:], 'query': os.environ.get('UG_TABS_QUERY')}))\n"
+  const out = Model.parseHelperOutput(runWith(echo, invocation("search", secretQuery)).stdout, 1024)
+  assert.deepEqual(out, { ok: true, argv: ["search"], query: secretQuery })
+})
+
+test("a helper that hangs is stopped at the deadline and reported as a timeout", { skip: !fs.existsSync("/usr/bin/timeout") }, () => {
+  const hang = "import time\ntime.sleep(30)\n"
+  const result = runWith(hang, invocation("tab", secretUrl, { timeoutSeconds: 1 }))
+  assert.ok(result.seconds < 10, `took ${result.seconds}s`)
+  const out = Model.parseHelperOutput(result.stdout, 1024)
+  assert.equal(out.ok, false)
+  assert.equal(out.code, "timeout")
+})
+
+test("whatever the helper prints, the wrapper passes on at most one byte past the cap", { skip: !fs.existsSync("/usr/bin/timeout") }, () => {
+  const flood = "import sys\nsys.stdout.write('x' * 100000)\n"
+  const result = runWith(flood, invocation("search", "q", { maxOutputBytes: 100 }))
+  assert.equal(result.stdout.length, 101)
+  assert.equal(Model.parseHelperOutput(result.stdout, 100).ok, false)
+})

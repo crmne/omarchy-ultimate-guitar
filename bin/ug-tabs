@@ -336,6 +336,20 @@ def shape_tab(store):
 
 # --- commands --------------------------------------------------------------
 
+# The shell hands over the query and the tab URL in the environment rather
+# than as arguments: both name the song, and a process's arguments are
+# readable by every user on the machine, its environment only by its owner.
+# Popped, so nothing this starts inherits them. An argument still works for
+# running the helper by hand.
+QUERY_ENV = "UG_TABS_QUERY"
+URL_ENV = "UG_TABS_URL"
+
+
+def take_input(given, name):
+    from_env = os.environ.pop(name, None)
+    return given if given is not None else (from_env or "")
+
+
 def cmd_search(args):
     query = args.query.strip()
     if not query:
@@ -368,18 +382,26 @@ def cmd_tab(args):
     return {"ok": True, **payload}
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--no-cache", action="store_true")
     parser.add_argument("--search-ttl", type=int, default=6 * 3600)
     parser.add_argument("--tab-ttl", type=int, default=7 * 86400)
     sub = parser.add_subparsers(dest="command", required=True)
     search = sub.add_parser("search", help="search tabs by 'artist title'")
-    search.add_argument("query")
+    search.add_argument("query", nargs="?",
+                        help="defaults to $%s, which is how the shell passes it" % QUERY_ENV)
     tab = sub.add_parser("tab", help="fetch one tab page")
-    tab.add_argument("url")
+    tab.add_argument("url", nargs="?",
+                     help="defaults to $%s, which is how the shell passes it" % URL_ENV)
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.command == "search":
+        args.query = take_input(args.query, QUERY_ENV)
+    else:
+        args.url = take_input(args.url, URL_ENV)
+    os.environ.pop(QUERY_ENV, None)
+    os.environ.pop(URL_ENV, None)
     handlers = {"search": cmd_search, "tab": cmd_tab}
     try:
         payload = handlers[args.command](args)

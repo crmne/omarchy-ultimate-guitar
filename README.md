@@ -135,6 +135,18 @@ Guitar link cannot open somewhere else. Pages are size-limited before and after
 decompression, search results, versions and tab text are capped, and the shell
 collects at most 2 MiB of the helper's output.
 
+The search query (artist and title) and the tab URL both name the song you are
+playing, and any user on the machine can read a process's arguments. So the
+shell runs the helper with only fixed words and flags on its command line
+(`ug-tabs search` or `ug-tabs tab`) and hands the query or URL over in the
+environment (`UG_TABS_QUERY`, `UG_TABS_URL`), which only you can read; the
+helper removes them from its environment on start. Each run has one overall
+deadline of 45 seconds, enforced by `timeout`, on top of the helper's
+per-read network timeouts, and the shell text around it is fixed, with
+nothing from the player or the network in it. The one place a song reaches a
+command line is when you click to open a page: the Ultimate Guitar URL is
+handed to `omarchy-launch-browser`, as any link you open is.
+
 Responses are cached under `~/.cache/omarchy/ultimate-guitar` -- searches for
 six hours, tabs for a week. Pass `--no-cache` to bypass it. The cache directory
 is private to you, entries are read without following symlinks or waiting on

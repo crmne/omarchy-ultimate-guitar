@@ -202,5 +202,48 @@ class Cache(unittest.TestCase):
         self.assertEqual(helper.cached("k", 60, lambda: {"v": 3}), {"v": 3})
 
 
+class InputFromTheEnvironment(unittest.TestCase):
+    """The shell passes the query and tab URL in the environment, because any
+    user can read a process's arguments but only its owner its environment."""
+
+    def run_main(self, argv, env):
+        seen = []
+
+        def fake_fetch(url, timeout=20, missing_ok=False):
+            helper.check_url(url)  # as the real fetch_store does, before any request
+            seen.append(url)
+            return None
+
+        out = io.StringIO()
+        with mock.patch.dict(os.environ, env), \
+                mock.patch.object(helper, "fetch_store", fake_fetch), \
+                mock.patch("sys.stdout", out):
+            helper.main(argv)
+            left = {k: os.environ.get(k) for k in (helper.QUERY_ENV, helper.URL_ENV)}
+        return json.loads(out.getvalue()), seen, left
+
+    def test_search_reads_the_query_from_the_environment_and_drops_it(self):
+        payload, seen, left = self.run_main(
+            ["--no-cache", "search"], {helper.QUERY_ENV: "Invented Band Secret Song"})
+        self.assertEqual(payload, {"ok": True, "query": "Invented Band Secret Song", "results": []})
+        self.assertIn("value=Invented+Band+Secret+Song", seen[0])
+        self.assertEqual(left, {helper.QUERY_ENV: None, helper.URL_ENV: None})
+
+    def test_tab_reads_the_url_from_the_environment_and_drops_it(self):
+        url = "https://tabs.ultimate-guitar.com/tab/invented-band/secret-song-tabs-1"
+        payload, seen, left = self.run_main(["--no-cache", "tab"], {helper.URL_ENV: url})
+        self.assertEqual(seen, [url])
+        self.assertEqual(payload["code"], "missing")
+        self.assertEqual(left, {helper.QUERY_ENV: None, helper.URL_ENV: None})
+
+    def test_an_argument_still_works_by_hand(self):
+        payload, _, _ = self.run_main(["--no-cache", "search", "by hand"], {})
+        self.assertEqual(payload["query"], "by hand")
+
+    def test_no_url_at_all_is_refused_rather_than_fetched(self):
+        payload, seen, _ = self.run_main(["--no-cache", "tab"], {})
+        self.assertEqual((payload["code"], seen), ("blocked", []))
+
+
 if __name__ == "__main__":
     unittest.main()

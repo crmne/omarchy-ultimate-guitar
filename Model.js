@@ -320,6 +320,39 @@ function searchPageUrl(artist, title) {
   return "https://www.ultimate-guitar.com/search.php?search_type=title&value=" + encodeURIComponent(query)
 }
 
+// How the shell runs the fetch helper for one lookup: `action` is "search" or
+// "tab", and `value` the query or the tab URL.
+//
+// The query names the artist and the song, and so does a tab URL, while a
+// process's arguments are readable by every user on the machine
+// (/proc/<pid>/cmdline). So the argument list carries only fixed words and
+// flags, and the value travels in the environment, which only this user can
+// read; the helper pops it from there.
+//
+// The shell text is a constant with numbers in it, never anything remote or
+// from the player. `timeout` gives the whole run one deadline (the helper's
+// own socket timeouts are per read, so a server trickling bytes could hold a
+// lookup for much longer), and says so in the helper's JSON shape when it
+// fires. `head` keeps what the shell collects bounded whatever happens.
+var HELPER_ENV = { search: "UG_TABS_QUERY", tab: "UG_TABS_URL" }
+
+function helperInvocation(options) {
+  var action = options.action === "tab" ? "tab" : "search"
+  var timedOut = JSON.stringify({ ok: false, code: "timeout",
+    error: "Ultimate Guitar took too long to answer" })
+  var script = "{ /usr/bin/timeout -k 2 " + Math.max(1, Math.floor(Number(options.timeoutSeconds) || 45))
+    + " \"$@\" || [ $? -ne 124 ] || printf '%s\\n' '" + timedOut + "'; }"
+    + " | /usr/bin/head -c " + (Math.floor(Number(options.maxOutputBytes) || 0) + 1)
+  var command = ["/usr/bin/sh", "-c", script, "ug-tabs",
+    String(options.python), String(options.helper)]
+  if (options.noCache) command.push("--no-cache")
+  command.push(action)
+  var environment = {}
+  environment[HELPER_ENV.search] = action === "search" ? String(options.value || "") : null
+  environment[HELPER_ENV.tab] = action === "tab" ? String(options.value || "") : null
+  return { command: command, environment: environment }
+}
+
 // What the fetch helper printed, as an object, or null when it printed nothing
 // usable. Output past `limit` means the helper did not respect its own cap (the
 // shell cuts it off one byte past it), so it is refused whole rather than
@@ -374,6 +407,8 @@ if (typeof module !== "undefined") {
     tabLines: tabLines,
     longestLine: longestLine,
     searchPageUrl: searchPageUrl,
+    HELPER_ENV: HELPER_ENV,
+    helperInvocation: helperInvocation,
     parseHelperOutput: parseHelperOutput
   }
 }

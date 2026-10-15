@@ -35,6 +35,9 @@ Item {
   // Whatever it prints passes through `head` first, so the shell never
   // collects more than this even if the helper misbehaves.
   readonly property int maxOutputBytes: 2 * 1024 * 1024
+  // One deadline for a whole helper run, on top of its per-read socket
+  // timeouts (see Model.helperInvocation).
+  readonly property int helperTimeoutSeconds: 45
 
   // --- what is playing -----------------------------------------------------
 
@@ -142,13 +145,22 @@ Item {
     startLookup()
   }
 
-  function helperCommand(args) {
-    var command = [
-      "/usr/bin/sh", "-c", "\"$@\" | /usr/bin/head -c " + (maxOutputBytes + 1),
-      "ug-tabs", python, helperPath
-    ]
-    if (bypassCache) command.push("--no-cache")
-    return command.concat(args)
+  // The query and the tab URL both name the song, so they go to the helper
+  // in its environment, never on its command line (see Model.helperInvocation).
+  function runHelper(proc, action, value) {
+    var run = Model.helperInvocation({
+      python: python,
+      helper: helperPath,
+      action: action,
+      value: value,
+      noCache: bypassCache,
+      maxOutputBytes: maxOutputBytes,
+      timeoutSeconds: helperTimeoutSeconds
+    })
+    proc.running = false
+    proc.command = run.command
+    proc.environment = run.environment
+    Qt.callLater(function () { proc.running = true })
   }
 
   function nextSearch() {
@@ -159,9 +171,7 @@ Item {
     var query = pendingQueries[0]
     pendingQueries = pendingQueries.slice(1)
     searchSerial = serial
-    searchProc.running = false
-    searchProc.command = helperCommand(["search", query])
-    Qt.callLater(function () { searchProc.running = true })
+    runHelper(searchProc, "search", query)
   }
 
   function loadTab(url) {
@@ -169,9 +179,7 @@ Item {
     if (!url) return
     tabSerial = serial
     lookupState = "loading"
-    tabProc.running = false
-    tabProc.command = helperCommand(["tab", String(url)])
-    Qt.callLater(function () { tabProc.running = true })
+    runHelper(tabProc, "tab", String(url))
   }
 
   function parsePayload(raw) {
@@ -240,7 +248,9 @@ Item {
   // --- opening pages -------------------------------------------------------
 
   // Checked again here so no future caller can reach the browser with a URL
-  // that has not been through the guard.
+  // that has not been through the guard. Only ever on an explicit click: the
+  // URL names the song, and opening a link in the browser puts it on the
+  // browser's command line, as any link the user opens does.
   function openUrl(url) {
     var safe = Model.externalUrl(url)
     if (!safe) return false
