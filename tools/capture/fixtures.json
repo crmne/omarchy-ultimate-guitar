@@ -1,0 +1,83 @@
+{
+  "_comment": "Invented artist, song and tab, written for the screenshots. Not a real song.",
+  "player": {
+    "trackTitle": "Paper Lighthouse",
+    "trackArtist": "Marlow Fennick"
+  },
+  "tab": {
+    "song": "Paper Lighthouse",
+    "artist": "Marlow Fennick",
+    "type": "Tabs",
+    "url": "https://tabs.ultimate-guitar.com/tab/marlow-fennick/paper-lighthouse-tabs-4100201",
+    "version": 1,
+    "rating": 4.8,
+    "votes": 1240,
+    "difficulty": "intermediate",
+    "key": "Am",
+    "capo": 2,
+    "tuningName": "Standard",
+    "tuning": "E A D G B E",
+    "content": "[Intro]\n[tab]   [ch]Am[/ch]                 [ch]Fmaj7[/ch]\ne|-----0-----0-----0-|-----0-----0-----0-|\nB|---1-----1-----1---|---1-----1-----1---|\nG|-2-----2-----2-----|-2-----2-----2-----|\nD|-------------------|-3-----------------|\nA|-0-----------------|-------------------|\nE|-------------------|-1-----------------|[/tab]\n\n[tab]   [ch]C[/ch]                  [ch]G/B[/ch]\ne|-----0-----0-----0-|-----3-----3-----3-|\nB|---1-----1-----1---|---0-----0-----0---|\nG|-0-----0-----0-----|-0-----0-----0-----|\nD|-2-----------------|-0-----------------|\nA|-3-----------------|-2-----------------|\nE|-------------------|-------------------|[/tab]\n\n[Verse 1]\n[tab]          [ch]Am[/ch]                   [ch]Fmaj7[/ch]\nSalt on the window, a lamp made of paper\n         [ch]C[/ch]                       [ch]G/B[/ch]\nFolded in half where the tide used to be[/tab]\n[tab]          [ch]Am[/ch]                   [ch]Fmaj7[/ch]\nNobody keeps it, it keeps itself burning\n          [ch]C[/ch]               [ch]G[/ch]\nOut past the harbour for someone like me[/tab]\n\n[Riff]\n[tab]e|-------------------------|-------------------------|\nB|-------------------------|-------------------------|\nG|-----------2-4-2---------|-----------2-4-5-4-2-----|\nD|-----2-3-4-------4-2-----|-----2-3-4-------------4-|\nA|-3-5---------------------|-3-5---------------------|\nE|-------------------------|-------------------------|[/tab]\n\n[Chorus]\n[tab]      [ch]F[/ch]             [ch]C[/ch]\nPaper lighthouse, turn your light\n      [ch]G[/ch]                [ch]Am[/ch]\nI can almost read the night[/tab]\n[tab]      [ch]F[/ch]             [ch]C[/ch]\nPaper lighthouse, hold it still\n        [ch]Dm7[/ch]          [ch]Esus4[/ch]  [ch]E[/ch]\nTill the water says it will[/tab]\n\n[Outro]\n[tab]e|-----0-------0-----|-----0-------0-----|-0---|\nB|---1---1---1---1---|---1---1---1---1---|-1---|\nG|-2-------2-------2-|-2-------2-------2-|-2---|\nD|-------------------|-3-----------------|-2---|\nA|-0-----------------|-------------------|-0---|\nE|-------------------|-1-----------------|-----|[/tab]\n",
+    "versions": [
+      {
+        "type": "Tabs",
+        "url": "https://tabs.ultimate-guitar.com/tab/marlow-fennick/paper-lighthouse-tabs-4100201",
+        "version": 1,
+        "rating": 4.8,
+        "votes": 1240,
+        "song": "Paper Lighthouse",
+        "artist": "Marlow Fennick"
+      },
+      {
+        "type": "Tabs",
+        "url": "https://tabs.ultimate-guitar.com/tab/marlow-fennick/paper-lighthouse-tabs-4100202",
+        "version": 2,
+        "rating": 4.6,
+        "votes": 318,
+        "song": "Paper Lighthouse",
+        "artist": "Marlow Fennick"
+      },
+      {
+        "type": "Chords",
+        "url": "https://tabs.ultimate-guitar.com/tab/marlow-fennick/paper-lighthouse-chords-4100203",
+        "version": 1,
+        "rating": 4.9,
+        "votes": 2715,
+        "song": "Paper Lighthouse",
+        "artist": "Marlow Fennick"
+      },
+      {
+        "type": "Chords",
+        "url": "https://tabs.ultimate-guitar.com/tab/marlow-fennick/paper-lighthouse-chords-4100204",
+        "version": 2,
+        "rating": 4.4,
+        "votes": 96,
+        "song": "Paper Lighthouse",
+        "artist": "Marlow Fennick"
+      },
+      {
+        "type": "Bass Tabs",
+        "url": "https://tabs.ultimate-guitar.com/tab/marlow-fennick/paper-lighthouse-bass-4100205",
+        "version": 1,
+        "rating": 4.7,
+        "votes": 154,
+        "song": "Paper Lighthouse",
+        "artist": "Marlow Fennick"
+      },
+      {
+        "type": "Ukulele Chords",
+        "url": "https://tabs.ultimate-guitar.com/tab/marlow-fennick/paper-lighthouse-ukulele-4100206",
+        "version": 1,
+        "rating": 4.5,
+        "votes": 211,
+        "song": "Paper Lighthouse",
+        "artist": "Marlow Fennick"
+      }
+    ],
+    "official": {
+      "url": "",
+      "available": false
+    },
+    "proUrl": ""
+  }
+}

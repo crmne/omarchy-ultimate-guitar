@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <!-- Abstract cover for the invented track in the screenshots. -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#2b3a55"/>
+      <stop offset="0.55" stop-color="#b85c4a"/>
+      <stop offset="1" stop-color="#f3b46f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.62" cy="0.38" r="0.35">
+      <stop offset="0" stop-color="#fff2c9" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#fff2c9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="256" height="256" fill="url(#sky)"/>
+  <circle cx="158" cy="98" r="90" fill="url(#glow)"/>
+  <path d="M0 190 C60 172 110 206 170 186 S240 178 256 184 V256 H0 Z" fill="#1d2433" opacity="0.85"/>
+  <path d="M0 214 C70 198 130 230 190 210 S240 206 256 210 V256 H0 Z" fill="#111722"/>
+  <rect x="150" y="104" width="16" height="84" fill="#efe3cf"/>
+  <polygon points="146,104 170,104 158,86" fill="#efe3cf"/>
+</svg>

@@ -10,7 +10,10 @@ https://github.com/user-attachments/assets/5707ef71-4145-4ad7-be4e-b41d56e6759e
 
 Music in the film: "What Child Is This? (Greensleeves)", played by Derek K. Miller, [CC BY 2.5 Canada](https://creativecommons.org/licenses/by/2.5/ca/).
 
-![Ultimate Guitar Tabs in the Omarchy bar](preview.png)
+![The expanded tab reader, and the compact reader with its instrument picker open](preview.png)
+
+The screenshots show the actual reader with a made-up song: the artist, the
+title, the tab and the cover are invented for them.
 
 `guitar icon` · `song + artist` · `instrument picker` · `version switcher` · `auto-scroll` · `text size`
 
@@ -146,6 +149,16 @@ per-read network timeouts, and the shell text around it is fixed, with
 nothing from the player or the network in it. The one place a song reaches a
 command line is when you click to open a page: the Ultimate Guitar URL is
 handed to `omarchy-launch-browser`, as any link you open is.
+
+`preview.png` is captured by `tools/capture/capture.py`, offscreen and on the
+GPU: it copies the production QML into a temporary host with its own home,
+feeds the service a fixture player and tab (`tools/capture/fixtures.json`,
+`tools/capture/cover.svg`) through its real handlers, and never reads a media
+player or touches the network. Run it with `python3 -B tools/capture/capture.py`
+under an exclusive GPU lock; it refuses a software-rendered capture. It also
+runs the production helper command through Quickshell against a stand-in
+helper and checks that the query arrives in the environment and on no
+command line.
 
 Responses are cached under `~/.cache/omarchy/ultimate-guitar` -- searches for
 six hours, tabs for a week. Pass `--no-cache` to bypass it. The cache directory
