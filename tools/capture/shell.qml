@@ -128,16 +128,20 @@ ShellRoot {
         layer.effect: MultiEffect { blurEnabled: true; blurMax: 16; blur: 0.7 }
       }
       Rectangle { anchors.fill: parent; color: "#a6000000" }
+      // The marketplace card shows only a strip from the middle, about 2.7
+      // times as wide as it is tall, and websites crop to 16:9. So the readers
+      // are shown at about their captured size and run off the edges, with the
+      // song, the pickers and the first bars of the tab in the middle.
       Image {
         id: expandedShot
-        x: 140; y: 70; width: 1188; height: 1460
+        x: 110; y: 336; width: 1540; height: 1892
         source: preview.visible ? Quickshell.env("UG_CAPTURE_OUTPUT") + "/expanded.png" : ""
         fillMode: Image.PreserveAspectFit
         layer.enabled: true
         layer.effect: MultiEffect { shadowEnabled: true; shadowBlur: 0.8; shadowOpacity: 0.6; shadowVerticalOffset: 20 }
       }
       Image {
-        x: 1250; y: 330; width: 1088; height: 1150
+        x: 1360; y: 450; width: 1232; height: 1302
         source: preview.visible ? Quickshell.env("UG_CAPTURE_OUTPUT") + "/instruments.png" : ""
         fillMode: Image.PreserveAspectFit
         layer.enabled: true
