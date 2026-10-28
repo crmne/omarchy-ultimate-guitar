@@ -30,12 +30,10 @@ Item {
   readonly property var tab: service ? service.tab : null
   readonly property string lookupState: service ? service.lookupState : "idle"
   readonly property bool ready: lookupState === "ready" && !!tab
-  // Only art the player points at on disk or over https. Track metadata can
-  // name any URL, and loading one is a request we never asked for.
-  readonly property string coverSource: {
-    var url = root.service ? String(root.service.artUrl || "") : ""
-    return /^(file:|https:)/i.test(url) ? url : ""
-  }
+  // A local file the service has vetted (see Artwork.qml), never the
+  // player's URL itself: only art on disk or over https is considered, and
+  // remote art is downloaded with a size limit before Qt sees it.
+  readonly property string coverSource: root.service ? String(root.service.artSource || "") : ""
 
   readonly property color foreground: bar ? bar.barForeground : Color.popups.text
   readonly property color chordColor: Color.accent

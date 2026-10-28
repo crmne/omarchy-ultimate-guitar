@@ -134,7 +134,8 @@ def main():
         plugin = work / "plugin"
         plugin.mkdir()
         shutil.copy(TOOLS / "Probe.qml", plugin / "Probe.qml")
-        for name in ["BarWidget.qml", "TabView.qml", "Model.js"]:
+        for name in ["BarWidget.qml", "TabView.qml", "Model.js", "Artwork.qml", "Artwork.js", "bin/artwork"]:
+            (plugin / name).parent.mkdir(exist_ok=True)
             shutil.copy(ROOT / name, plugin / name)
         (plugin / "Service.qml").write_text(fixture_service((ROOT / "Service.qml").read_text()))
         shutil.copy(TOOLS / "shell.qml", shell / "shell.qml")

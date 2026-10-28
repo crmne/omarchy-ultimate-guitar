@@ -47,6 +47,9 @@ Item {
   readonly property string title: activePlayer ? String(activePlayer.trackTitle || "") : ""
   readonly property string artist: activePlayer ? String(activePlayer.trackArtist || "") : ""
   readonly property string artUrl: activePlayer ? String(activePlayer.trackArtUrl || "") : ""
+  // What the reader's cover loads: never the player's URL itself, which Qt
+  // would download without a size limit. See Artwork.qml.
+  readonly property string artSource: artwork.source
   readonly property string trackKey: hasMedia ? artist + " " + title : ""
   readonly property string nowPlaying: {
     if (!hasMedia) return ""
@@ -227,6 +230,13 @@ Item {
     tab = payload.tab
     versions = Model.renderableVersions(payload.tab ? payload.tab.versions : [], instrument)
     lookupState = tab && tab.content ? "ready" : "empty"
+  }
+
+  // Fetched only while the reader is up, the only place the cover shows.
+  Artwork {
+    id: artwork
+    url: root.artUrl
+    active: root.panelOpen
   }
 
   Process {

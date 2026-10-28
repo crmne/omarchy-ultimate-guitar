@@ -41,7 +41,8 @@ omarchy bar move crmne.ultimate-guitar --section right --before omarchy.tray
 - Omarchy Quattro with its Quickshell-based shell.
 - Any media player that tells the desktop what it is playing (the standard
   MPRIS interface, which nearly all of them speak).
-- `/usr/bin/python3` for the fetch helper. No extra packages, no account.
+- `/usr/bin/python3` for the fetch and album-art helpers. No extra packages, no
+  account.
 
 ## Using it
 
@@ -123,10 +124,10 @@ bin/ug-tabs tab https://tabs.ultimate-guitar.com/tab/...
 ```
 
 Matching, ranking, and rendering live in `Model.js` as pure functions, and the
-fetch helper's URL guard has its own tests:
+fetch and album-art helpers have their own tests:
 
 ```bash
-node --test tests/model.test.js
+node --test tests/model.test.js tests/artwork.test.js
 python3 -m unittest discover -s tests
 ```
 
@@ -149,6 +150,19 @@ per-read network timeouts, and the shell text around it is fixed, with
 nothing from the player or the network in it. The one place a song reaches a
 command line is when you click to open a page: the Ultimate Guitar URL is
 handed to `omarchy-launch-browser`, as any link you open is.
+
+The cover in the reader header never reaches Qt as a URL. Given an `https`
+URL, Qt's `Image` holds the whole response in memory before decoding it, so a
+cover server answering with something huge could exhaust the memory of the
+shell and every widget in it. Instead, while the reader is open, the plugin
+runs `/usr/bin/python3` with `bin/artwork`, which downloads the cover the
+player advertises with a hard limit of 16 MiB and 20 seconds, refusing it as
+soon as either is passed, and the reader loads it from a private cache under
+`~/.cache/omarchy/ultimate-guitar/artwork` (the 64 most recent covers, up to 64 MiB in
+all). Covers the player keeps on disk (`file://`) are not copied: they are
+shown only if they are regular files within the same limit. Only `https` is
+followed, with every redirect re-checked, and the cover URL travels in the
+helper's environment (`ARTWORK_URL`), not on its command line.
 
 `preview.png` is captured by `tools/capture/capture.py`, offscreen and on the
 GPU: it copies the production QML into a temporary host with its own home,
