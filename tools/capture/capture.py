@@ -2,7 +2,7 @@
 """Capture the real reader with an invented track, never touching players or the network.
 
 Run through a GPU lock (see docs in README). Needs the installed Omarchy shell,
-Quickshell, and an OpenGL-capable GPU; refuses a software-rendered capture.
+Quickshell, rsvg-convert, and an OpenGL-capable GPU; refuses a software-rendered capture.
 
 Production BarWidget.qml, TabView.qml, Service.qml and Model.js are copied into
 a temporary host with its own HOME. In the copies only the plumbing changes:
@@ -140,6 +140,10 @@ def main():
         (plugin / "Service.qml").write_text(fixture_service((ROOT / "Service.qml").read_text()))
         shutil.copy(TOOLS / "shell.qml", shell / "shell.qml")
         (work / "probe.py").write_text(PROBE)
+        # bin/artwork hands Qt only PNG and JPEG covers, so the fixture's SVG
+        # goes in as a PNG, through the same helper as a player's cover.
+        cover = work / "cover.png"
+        subprocess.run(["rsvg-convert", "-o", str(cover), str(TOOLS / "cover.svg")], check=True)
         (work / "screen.json").write_text(json.dumps({"screens": [dict(
             name="CAPTURE", x=0, y=0, width=2800, height=1800,
             logicalDpi=96, logicalBaseDpi=96, dpr=1)]}))
@@ -150,7 +154,7 @@ def main():
                    UG_TABS_URL="inherited-and-must-not-arrive",
                    UG_CAPTURE_PLUGIN=str(plugin),
                    UG_CAPTURE_FIXTURES=str(TOOLS / "fixtures.json"),
-                   UG_CAPTURE_COVER=str(TOOLS / "cover.svg"),
+                   UG_CAPTURE_COVER=str(cover),
                    UG_CAPTURE_OUTPUT=str(output),
                    UG_CAPTURE_WALLPAPER="/usr/share/omarchy/themes/ristretto/backgrounds/0-launch.png")
         log = work / "qs.log"

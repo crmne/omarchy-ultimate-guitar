@@ -160,10 +160,20 @@ runs `/usr/bin/python3` with `bin/artwork`, which downloads the cover the
 player advertises with a hard limit of 16 MiB and 20 seconds, refusing it as
 soon as either is passed, and the reader loads it from a private cache under
 `~/.cache/omarchy/ultimate-guitar/artwork` (the 64 most recent covers, up to 64 MiB in
-all). Covers the player keeps on disk (`file://`) are not copied: they are
-shown only if they are regular files within the same limit. Only `https` is
-followed, with every redirect re-checked, and the cover URL travels in the
-helper's environment (`ARTWORK_URL`), not on its command line.
+all). Only `https` is followed, with every redirect re-checked and its body
+never read, and the cover URL travels in the helper's environment
+(`ARTWORK_URL`), not on its command line.
+
+A small file can still cost a lot to decode: a PNG of a few kilobytes can
+declare billions of pixels, or carry compressed text and colour profiles that
+inflate to gigabytes. So the helper hands Qt only a PNG or JPEG no larger than
+3072 pixels a side, rewritten with just what draws the picture: text, colour
+profiles, EXIF, comments and other metadata are dropped, and a PNG whose pixel
+data inflates to more than its size needs is refused. Covers the player keeps
+on disk (`file://`), often saved by a browser from a web page, go through the
+same check into the same cache once they are regular files within 16 MiB, so
+Qt only ever opens the helper's own copy, never the player's path. Anything
+else, including GIF, WebP and larger pictures, shows no cover.
 
 `preview.png` is captured by `tools/capture/capture.py`, offscreen and on the
 GPU: it copies the production QML into a temporary host with its own home,
