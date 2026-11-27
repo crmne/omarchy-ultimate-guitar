@@ -133,11 +133,12 @@ python3 -m unittest discover -s tests
 
 Tab URLs and redirects come from remote page state, so they are treated as input
 rather than as addresses. Only `https` on `ultimate-guitar.com` and its
-subdomains is fetched, every redirect hop is re-checked, and the same guard runs
-before any URL is handed to the browser, so a control labelled as an Ultimate
-Guitar link cannot open somewhere else. Pages are size-limited before and after
-decompression, search results, versions and tab text are capped, and the shell
-collects at most 2 MiB of the helper's output.
+subdomains is fetched, every redirect hop is re-checked and its body never
+read, and the same guard runs before any URL is handed to the browser, so a
+control labelled as an Ultimate Guitar link cannot open somewhere else. Pages
+are size-limited before and after decompression, search results, versions and
+tab text are capped, and the shell collects at most 2 MiB of the helper's
+output.
 
 The search query (artist and title) and the tab URL both name the song you are
 playing, and any user on the machine can read a process's arguments. So the

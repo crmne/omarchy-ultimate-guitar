@@ -11,6 +11,8 @@ another local process swapping its files.
 """
 
 import gzip
+import http.client
+import importlib.machinery
 import importlib.util
 import io
 import json
@@ -76,6 +78,49 @@ class CheckUrl(unittest.TestCase):
         with self.assertRaises(helper.BlockedUrl):
             helper.check_url("https://evil.example/after-redirect")
 
+
+
+class Redirects(unittest.TestCase):
+    """A redirect's body never reaches memory: only the final answer is read,
+    and that one through read_limited."""
+
+    class Endless:
+        """A redirect body with no end, until it is closed."""
+
+        def __init__(self):
+            self.closed = False
+            self.served = 0
+
+        def read(self, size=-1):
+            if self.closed:
+                return b""
+            self.served += 1 << 20
+            return b"x" * (1 << 20)
+
+        def close(self):
+            self.closed = True
+
+    def follow(self, location):
+        handler = helper.GuardedRedirects()
+        handler.parent = mock.Mock()
+        body = self.Endless()
+        request = helper.urllib.request.Request("https://www.ultimate-guitar.com/search.php?value=x")
+        request.timeout = 5
+        headers = http.client.HTTPMessage()
+        headers["Location"] = location
+        handler.http_error_302(request, body, 302, "Found", headers)
+        return handler.parent, body
+
+    def test_a_redirect_body_is_never_read(self):
+        parent, body = self.follow("https://tabs.ultimate-guitar.com/tab/a/b-1")
+        parent.open.assert_called_once()
+        self.assertEqual(parent.open.call_args.args[0].full_url, "https://tabs.ultimate-guitar.com/tab/a/b-1")
+        self.assertTrue(body.closed)
+        self.assertEqual(body.served, 0)
+
+    def test_a_redirect_elsewhere_is_refused_before_anything_is_read(self):
+        with self.assertRaises(helper.BlockedUrl):
+            self.follow("https://evil.example/tab")
 
 class FakeResponse:
     def __init__(self, body, headers=None):
