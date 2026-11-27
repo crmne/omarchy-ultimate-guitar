@@ -2,8 +2,9 @@
 
 Whatever is playing, its tab is one click away in the bar.
 
-The widget picks up whatever you are playing, finds the best-rated tab for it
-on Ultimate Guitar, and renders it right in the shell: chords colored, columns
+The widget picks up whatever you are playing and, when you open the reader,
+finds the best-rated tab for it on Ultimate Guitar and renders it right in the
+shell: chords colored, columns
 aligned, with auto-scroll for when both your hands are on the guitar.
 
 https://github.com/user-attachments/assets/5707ef71-4145-4ad7-be4e-b41d56e6759e
@@ -50,7 +51,7 @@ omarchy bar move crmne.ultimate-guitar --section right --before omarchy.tray
 |---|---|
 | left click | open the tab reader |
 | right click | open the tab on ultimate-guitar.com |
-| middle click | look the song up again, ignoring the cache |
+| middle click | look the song up again, ignoring the cache (the next time the reader opens, if it is closed) |
 
 Inside the reader: pick the instrument, pick another version, start auto-scroll
 and set its speed, or step the text size up and down. Scrolling by hand stops
@@ -139,6 +140,10 @@ control labelled as an Ultimate Guitar link cannot open somewhere else. Pages
 are size-limited before and after decompression, search results, versions and
 tab text are capped, and the shell collects at most 2 MiB of the helper's
 output.
+
+Nothing is looked up while the reader is closed: a track that starts playing
+is sent to Ultimate Guitar only when you open the reader, and opening it for a
+song looked up before shows the cached tab without asking again.
 
 The search query (artist and title) and the tab URL both name the song you are
 playing, and any user on the machine can read a process's arguments. So the

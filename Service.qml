@@ -111,17 +111,33 @@ Item {
     versions = []
     errorText = ""
     debounce.stop()
-    if (!hasMedia) {
-      lookupState = "idle"
-      return
-    }
-    lookupState = "searching"
-    debounce.restart()
+    // With the reader closed nothing is sent: see Model.wantsLookup.
+    lookupState = Model.stateAfterTrackChange(hasMedia, panelOpen)
+    if (lookupState === "searching") debounce.restart()
   }
 
+  // Opening the reader is what looks the track up. Results the helper has
+  // cached come back without asking Ultimate Guitar.
+  onPanelOpenChanged: if (Model.wantsLookup(hasMedia, panelOpen, lookupState)) startLookup()
+
   // Switching instrument re-picks for the song already playing rather than
-  // waiting for the next one.
-  onInstrumentChanged: if (hasMedia) startLookup()
+  // waiting for the next one; with the reader closed, when it next opens.
+  onInstrumentChanged: {
+    if (!hasMedia) return
+    if (panelOpen) startLookup()
+    else forget()
+  }
+
+  // Drops what is shown for the current track, so opening the reader looks
+  // it up again.
+  function forget() {
+    serial++
+    tab = null
+    versions = []
+    errorText = ""
+    debounce.stop()
+    lookupState = "idle"
+  }
 
   // Skipping through a playlist should cost one lookup, not one per track.
   Timer {
@@ -131,7 +147,8 @@ Item {
   }
 
   function startLookup() {
-    if (!hasMedia) {
+    // A debounce that ends after the reader closed waits for it to open again.
+    if (!hasMedia || !panelOpen) {
       lookupState = "idle"
       return
     }
@@ -145,7 +162,9 @@ Item {
   function refresh() {
     if (!hasMedia) return
     bypassCache = true
-    startLookup()
+    // Closed: looked up again, past the cache, when the reader opens.
+    if (panelOpen) startLookup()
+    else forget()
   }
 
   // The query and the tab URL both name the song, so they go to the helper

@@ -383,3 +383,26 @@ test("whatever the helper prints, the wrapper passes on at most one byte past th
   assert.equal(result.stdout.length, 101)
   assert.equal(Model.parseHelperOutput(result.stdout, 100).ok, false)
 })
+
+test("a track is looked up only while the reader is open", () => {
+  assert.equal(Model.stateAfterTrackChange(true, false), "idle")
+  assert.equal(Model.stateAfterTrackChange(true, true), "searching")
+  assert.equal(Model.stateAfterTrackChange(false, true), "idle")
+  assert.equal(Model.wantsLookup(true, false, "idle"), false, "closed: nothing is sent")
+  assert.equal(Model.wantsLookup(true, true, "idle"), true, "opening the reader looks it up")
+  for (const state of ["searching", "loading", "ready", "empty", "error"])
+    assert.equal(Model.wantsLookup(true, true, state), false, state)
+  assert.equal(Model.wantsLookup(false, true, "idle"), false)
+})
+
+test("the service starts lookups only through the reader-open rules", () => {
+  const service = fs.readFileSync(path.join(__dirname, "..", "Service.qml"), "utf8")
+  const onTrack = service.match(/onTrackKeyChanged: \{[\s\S]*?\n  \}/)[0]
+  assert.match(onTrack, /Model\.stateAfterTrackChange\(hasMedia, panelOpen\)/)
+  assert.ok(!/startLookup\(\)/.test(onTrack), "a track change never looks up directly")
+  assert.match(service, /onPanelOpenChanged: if \(Model\.wantsLookup\(hasMedia, panelOpen, lookupState\)\) startLookup\(\)/)
+  const start = service.match(/function startLookup\(\) \{[\s\S]*?\n  \}/)[0]
+  assert.match(start, /if \(!hasMedia \|\| !panelOpen\)/)
+  const instrument = service.match(/onInstrumentChanged: \{[\s\S]*?\n  \}/)[0]
+  assert.match(instrument, /if \(panelOpen\) startLookup\(\)/)
+})

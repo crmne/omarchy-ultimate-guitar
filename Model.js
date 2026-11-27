@@ -336,6 +336,19 @@ function searchPageUrl(artist, title) {
 // fires. `head` keeps what the shell collects bounded whatever happens.
 var HELPER_ENV = { search: "UG_TABS_QUERY", tab: "UG_TABS_URL" }
 
+// What is playing reaches Ultimate Guitar only when you open the reader,
+// never because a track changed while it was closed. A track change with the
+// reader closed leaves the lookup idle; opening the reader starts it.
+function stateAfterTrackChange(hasMedia, panelOpen) {
+  return hasMedia && panelOpen ? "searching" : "idle"
+}
+
+// Whether to search now: only for a track with no lookup yet, and only while
+// the reader is open.
+function wantsLookup(hasMedia, panelOpen, lookupState) {
+  return !!hasMedia && !!panelOpen && lookupState === "idle"
+}
+
 function helperInvocation(options) {
   var action = options.action === "tab" ? "tab" : "search"
   var timedOut = JSON.stringify({ ok: false, code: "timeout",
@@ -408,6 +421,8 @@ if (typeof module !== "undefined") {
     longestLine: longestLine,
     searchPageUrl: searchPageUrl,
     HELPER_ENV: HELPER_ENV,
+    stateAfterTrackChange: stateAfterTrackChange,
+    wantsLookup: wantsLookup,
     helperInvocation: helperInvocation,
     parseHelperOutput: parseHelperOutput
   }

@@ -11,7 +11,8 @@ existing behavior unless the task explicitly changes it.
   player, owns the lookup state machine, debounces track changes, invokes the
   helper, rejects stale results with serials, exposes the IPC contract, and
   opens validated links. A lookup should happen once per song even when several
-  monitors instantiate `BarWidget.qml`.
+  monitors instantiate `BarWidget.qml`, and only while the reader is open: a
+  track change with the reader closed sends nothing to Ultimate Guitar.
 - `Model.js` contains pure query cleanup, catalogue matching and ranking,
   instrument fallback, safe display shaping, URL validation, and tab rendering.
   Keep it free of QML types and compatible with both QML JavaScript and
